@@ -1,0 +1,995 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Policy Writing Agent Runtime Console</title>
+  <style>
+    :root {
+      --paper: #f6f3ec;
+      --panel: #fffdf7;
+      --ink: #24211d;
+      --muted: #70695d;
+      --line: #d8d0c1;
+      --line-strong: #a79c8a;
+      --green: #2c7a5b;
+      --green-soft: #dceade;
+      --blue: #2f66a8;
+      --blue-soft: #dce6f5;
+      --red: #b64a3d;
+      --red-soft: #f3ded8;
+      --amber: #9a6b20;
+      --amber-soft: #f4e5bf;
+      --shadow: 0 16px 36px rgba(45, 35, 18, 0.10);
+      font-family: ui-sans-serif, "Avenir Next", "Gill Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(36, 33, 29, 0.035) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(36, 33, 29, 0.035) 1px, transparent 1px),
+        var(--paper);
+      background-size: 28px 28px;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button {
+      border: 1px solid var(--ink);
+      border-radius: 6px;
+      background: var(--ink);
+      color: #fffaf0;
+      min-height: 36px;
+      padding: 0 14px;
+      cursor: pointer;
+      box-shadow: none;
+    }
+
+    button.secondary {
+      background: transparent;
+      color: var(--ink);
+    }
+
+    button.ghost {
+      border-color: var(--line);
+      background: transparent;
+      color: var(--muted);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+
+    input,
+    select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      min-height: 34px;
+      padding: 7px 9px;
+      color: var(--ink);
+      background: #fffefa;
+      outline: none;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(47, 102, 168, 0.14);
+    }
+
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 270px 1fr;
+    }
+
+    .rail {
+      border-right: 1px solid var(--line);
+      background: rgba(255, 253, 247, 0.82);
+      backdrop-filter: blur(10px);
+      padding: 22px 18px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: auto;
+    }
+
+    .brand {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 18px;
+      margin-bottom: 18px;
+    }
+
+    .brand h1 {
+      font-family: Georgia, "Songti SC", serif;
+      font-size: 26px;
+      line-height: 1.05;
+      margin: 0 0 8px;
+      letter-spacing: 0;
+    }
+
+    .brand p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .rail-section {
+      margin: 18px 0;
+    }
+
+    .rail-label,
+    .field label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin: 0 0 6px;
+    }
+
+    .mode-stack {
+      display: grid;
+      gap: 8px;
+    }
+
+    .mode-button {
+      text-align: left;
+      color: var(--ink);
+      background: #fffefa;
+      border-color: var(--line);
+      padding: 10px;
+      min-height: 58px;
+    }
+
+    .mode-button strong {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 3px;
+    }
+
+    .mode-button span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .mode-button.active.local {
+      border-color: var(--green);
+      background: var(--green-soft);
+    }
+
+    .mode-button.active.api {
+      border-color: var(--blue);
+      background: var(--blue-soft);
+    }
+
+    .main {
+      padding: 24px;
+      overflow: auto;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .topbar h2 {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    .topbar p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(160px, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      background: rgba(255, 253, 247, 0.86);
+      border-radius: 8px;
+      padding: 12px;
+      min-height: 82px;
+    }
+
+    .metric .value {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .metric .label {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(340px, 0.75fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 253, 247, 0.92);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+
+    .panel-head {
+      border-bottom: 1px solid var(--line);
+      padding: 13px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: rgba(246, 243, 236, 0.7);
+    }
+
+    .panel-head h3 {
+      margin: 0;
+      font-size: 15px;
+    }
+
+    .panel-head span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .panel-body {
+      padding: 14px;
+    }
+
+    .provider-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .provider-block {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fffefa;
+    }
+
+    .provider-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .provider-title strong {
+      font-size: 14px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      border-radius: 999px;
+      padding: 0 8px;
+      font-size: 11px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: #fffefa;
+      white-space: nowrap;
+    }
+
+    .pill.ok {
+      color: var(--green);
+      border-color: rgba(44, 122, 91, 0.35);
+      background: var(--green-soft);
+    }
+
+    .pill.warn {
+      color: var(--amber);
+      border-color: rgba(154, 107, 32, 0.35);
+      background: var(--amber-soft);
+    }
+
+    .pill.bad {
+      color: var(--red);
+      border-color: rgba(182, 74, 61, 0.35);
+      background: var(--red-soft);
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .field.wide {
+      grid-column: 1 / -1;
+    }
+
+    .agent-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .agent-table th,
+    .agent-table td {
+      border-bottom: 1px solid var(--line);
+      padding: 9px 8px;
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    .agent-table th {
+      color: var(--muted);
+      font-weight: 600;
+      background: #fbf7ee;
+    }
+
+    .agent-table tr.selected {
+      background: rgba(47, 102, 168, 0.08);
+    }
+
+    .agent-name {
+      border: 0;
+      background: transparent;
+      color: var(--ink);
+      padding: 0;
+      min-height: 0;
+      text-align: left;
+      font-weight: 700;
+    }
+
+    .agent-name:focus {
+      outline: 2px solid rgba(47, 102, 168, 0.3);
+      outline-offset: 3px;
+    }
+
+    .split-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    .validation-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .issue {
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--red);
+      border-radius: 6px;
+      padding: 9px;
+      background: #fffefa;
+      font-size: 13px;
+    }
+
+    .empty {
+      border: 1px dashed var(--line-strong);
+      border-radius: 8px;
+      padding: 14px;
+      color: var(--muted);
+      font-size: 13px;
+      background: rgba(255, 253, 247, 0.65);
+    }
+
+    .console-line {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      border: 1px solid var(--line);
+      background: #1f211d;
+      color: #f6f3ec;
+      border-radius: 8px;
+      padding: 11px;
+      overflow: auto;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .toast {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fffefa;
+      box-shadow: var(--shadow);
+      padding: 12px 14px;
+      font-size: 13px;
+      transform: translateY(120%);
+      transition: transform 160ms ease;
+      max-width: 360px;
+      z-index: 10;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+    }
+
+    @media (max-width: 980px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+
+      .rail {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .layout,
+      .provider-grid,
+      .status-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .agent-table,
+      .agent-table thead,
+      .agent-table tbody,
+      .agent-table tr,
+      .agent-table th,
+      .agent-table td {
+        display: block;
+        width: 100%;
+      }
+
+      .agent-table thead {
+        display: none;
+      }
+
+      .agent-table tr {
+        border-bottom: 1px solid var(--line);
+        padding: 10px 12px;
+      }
+
+      .agent-table td {
+        border-bottom: 0;
+        display: grid;
+        grid-template-columns: 92px minmax(0, 1fr);
+        gap: 8px;
+        align-items: center;
+        padding: 6px 0;
+      }
+
+      .agent-table td::before {
+        content: attr(data-label);
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .agent-name {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail">
+      <div class="brand">
+        <h1>Runtime Console</h1>
+        <p>切换 Codex/local 与 API 写作驱动，维护 OpenAI / Anthropic 配置。</p>
+      </div>
+
+      <div class="rail-section">
+        <label class="rail-label" for="targetSelect">配置文件</label>
+        <select id="targetSelect">
+          <option value="real">real - report_task.real.yaml</option>
+          <option value="mock">mock - report_task.yaml</option>
+        </select>
+      </div>
+
+      <div class="rail-section">
+        <div class="rail-label">运行模式</div>
+        <div class="mode-stack">
+          <button class="mode-button local" id="codexMode" type="button">
+            <strong>Codex / Local</strong>
+            <span>规则流程驱动，不调用写作 API。</span>
+          </button>
+          <button class="mode-button api" id="apiMode" type="button">
+            <strong>API Assisted</strong>
+            <span>让可接线 agent 调用 OpenAI/Anthropic。</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="rail-section">
+        <div class="rail-label">运行命令</div>
+        <div class="console-line" id="runCommand">python3 src/runner.py --task config/report_task.real.yaml</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section class="topbar">
+        <div>
+          <h2>Agent API 配置控制台</h2>
+          <p id="configPath">正在读取配置...</p>
+        </div>
+        <div class="actions">
+          <button class="secondary" id="reloadButton" type="button">重新载入</button>
+          <button class="ghost" id="validateButton" type="button">校验</button>
+          <button id="saveButton" type="button">保存 YAML</button>
+        </div>
+      </section>
+
+      <section class="status-grid">
+        <div class="metric">
+          <div class="value" id="runtimeMode">-</div>
+          <div class="label">当前 agent runtime mode</div>
+        </div>
+        <div class="metric">
+          <div class="value" id="apiAgentCount">0</div>
+          <div class="label">当前启用 API 的 agent</div>
+        </div>
+        <div class="metric">
+          <div class="value" id="validationStatus">-</div>
+          <div class="label">配置校验状态</div>
+        </div>
+        <div class="metric">
+          <div class="value" id="envStatus">-</div>
+          <div class="label">API key 环境变量状态</div>
+        </div>
+      </section>
+
+      <div class="layout">
+        <section>
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h3>Provider Defaults</h3>
+                <span>默认配置会被每个 agent 继承；密钥只保存环境变量名。</span>
+              </div>
+            </div>
+            <div class="panel-body provider-grid" id="providerGrid"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h3>Agent Routing</h3>
+                <span>API 目前接线到 SectionContractAgent 和 SectionComposerAgent。</span>
+              </div>
+            </div>
+            <div class="panel-body" style="padding: 0;">
+              <table class="agent-table">
+                <thead>
+                  <tr>
+                    <th>Agent</th>
+                    <th>Driver</th>
+                    <th>Provider</th>
+                    <th>API 接线</th>
+                  </tr>
+                </thead>
+                <tbody id="agentRows"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <aside>
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h3 id="detailTitle">Agent Detail</h3>
+                <span id="detailSubtitle">选择一个 agent 查看配置。</span>
+              </div>
+            </div>
+            <div class="panel-body" id="agentDetail"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h3>Validation</h3>
+                <span>保存前会自动校验。</span>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="validation-list" id="validationList"></div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const state = {
+      target: 'real',
+      config: null,
+      schema: null,
+      validation: [],
+      env: {},
+      selectedAgent: 'SectionComposerAgent'
+    };
+
+    const providerFields = {
+      openai: [
+        ['api_key_env', 'API Key Env'],
+        ['base_url', 'Base URL'],
+        ['model_env', 'Model Env'],
+        ['model', 'Model'],
+        ['temperature', 'Temperature'],
+        ['max_tokens', 'Max Tokens'],
+        ['timeout_sec', 'Timeout Sec']
+      ],
+      anthropic: [
+        ['api_key_env', 'API Key Env'],
+        ['base_url', 'Base URL'],
+        ['anthropic_version', 'API Version'],
+        ['model_env', 'Model Env'],
+        ['model', 'Model'],
+        ['temperature', 'Temperature'],
+        ['max_tokens', 'Max Tokens'],
+        ['timeout_sec', 'Timeout Sec']
+      ]
+    };
+
+    const $ = (id) => document.getElementById(id);
+
+    function ensureRuntime() {
+      state.config.agent_runtime ||= {};
+      state.config.agent_runtime.mode ||= 'local';
+      state.config.agent_runtime.default_driver ||= 'local';
+      state.config.agent_runtime.provider_defaults ||= {};
+      state.config.agent_runtime.provider_defaults.openai ||= { provider: 'openai' };
+      state.config.agent_runtime.provider_defaults.anthropic ||= { provider: 'anthropic' };
+      state.config.agent_runtime.agents ||= {};
+      for (const agent of state.schema.agents) {
+        state.config.agent_runtime.agents[agent] ||= { driver: 'local', api: { provider: 'openai' } };
+        state.config.agent_runtime.agents[agent].api ||= { provider: 'openai' };
+      }
+    }
+
+    async function loadConfig() {
+      const res = await fetch(`/api/config?target=${encodeURIComponent(state.target)}`);
+      const data = await res.json();
+      state.config = data.config;
+      state.schema = data.schema;
+      state.validation = data.validation || [];
+      state.env = data.env || {};
+      ensureRuntime();
+      render();
+      toast(`已载入 ${data.target} 配置`);
+    }
+
+    async function validateConfig() {
+      const res = await fetch('/api/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: state.config })
+      });
+      const data = await res.json();
+      state.validation = data.validation || [];
+      state.env = data.env || {};
+      renderStatus();
+      renderValidation();
+      toast(state.validation.length ? '配置存在校验问题' : '配置校验通过');
+    }
+
+    async function saveConfig() {
+      await validateConfig();
+      if (state.validation.length) {
+        toast('校验未通过，未保存');
+        return;
+      }
+      const res = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: state.target, config: state.config })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        state.validation = data.validation || [{ agent: '*', message: data.error || '保存失败' }];
+        renderValidation();
+        toast('保存失败');
+        return;
+      }
+      state.config = data.config;
+      state.validation = data.validation || [];
+      state.env = data.env || {};
+      ensureRuntime();
+      render();
+      toast('YAML 已保存');
+    }
+
+    function setRuntimePreset(mode) {
+      ensureRuntime();
+      if (mode === 'local') {
+        state.config.agent_runtime.mode = 'local';
+        state.config.agent_runtime.default_driver = 'local';
+        for (const agent of state.schema.agents) {
+          state.config.agent_runtime.agents[agent].driver = 'local';
+        }
+      } else {
+        state.config.agent_runtime.mode = 'llm_api';
+        state.config.agent_runtime.default_driver = 'local';
+        for (const agent of state.schema.agents) {
+          state.config.agent_runtime.agents[agent].driver = state.schema.api_driver_supported_agents.includes(agent) ? 'llm_api' : 'local';
+        }
+      }
+      render();
+    }
+
+    function render() {
+      renderStatus();
+      renderProviders();
+      renderAgents();
+      renderAgentDetail();
+      renderValidation();
+      renderModeButtons();
+      const path = state.target === 'real' ? 'config/report_task.real.yaml' : 'config/report_task.yaml';
+      $('configPath').textContent = path;
+      $('runCommand').textContent = `python3 src/runner.py --task ${path}`;
+    }
+
+    function renderStatus() {
+      const runtime = state.config.agent_runtime;
+      const apiAgents = Object.values(runtime.agents || {}).filter((agent) => agent.driver === 'llm_api').length;
+      const envValues = Object.values(state.env);
+      const envReady = envValues.length ? envValues.filter(Boolean).length : 0;
+      $('runtimeMode').textContent = runtime.mode === 'llm_api' ? 'API' : 'Codex';
+      $('apiAgentCount').textContent = String(apiAgents);
+      $('validationStatus').textContent = state.validation.length ? 'Issues' : 'PASS';
+      $('envStatus').textContent = envValues.length ? `${envReady}/${envValues.length}` : '0/0';
+    }
+
+    function renderModeButtons() {
+      $('codexMode').classList.toggle('active', state.config.agent_runtime.mode !== 'llm_api');
+      $('apiMode').classList.toggle('active', state.config.agent_runtime.mode === 'llm_api');
+    }
+
+    function renderProviders() {
+      const grid = $('providerGrid');
+      grid.innerHTML = '';
+      for (const provider of ['openai', 'anthropic']) {
+        const defaults = state.config.agent_runtime.provider_defaults[provider] || { provider };
+        const block = document.createElement('div');
+        block.className = 'provider-block';
+        const apiKeyEnv = defaults.api_key_env;
+        const envClass = apiKeyEnv && state.env[apiKeyEnv] ? 'ok' : 'warn';
+        block.innerHTML = `
+          <div class="provider-title">
+            <strong>${providerLabel(provider)}</strong>
+            <span class="pill ${envClass}">${apiKeyEnv || 'no env'}</span>
+          </div>
+          <div class="form-grid">
+            ${providerFields[provider].map(([key, label]) => fieldHTML(`provider-${provider}-${key}`, label, defaults[key] ?? '')).join('')}
+          </div>
+        `;
+        grid.appendChild(block);
+        for (const [key] of providerFields[provider]) {
+          $(`provider-${provider}-${key}`).addEventListener('input', (event) => {
+            const value = typedValue(key, event.target.value);
+            state.config.agent_runtime.provider_defaults[provider][key] = value;
+            if (key === 'api_key_env' || key === 'model_env') {
+              state.env[value] ??= false;
+            }
+            renderStatus();
+          });
+        }
+      }
+    }
+
+    function renderAgents() {
+      const body = $('agentRows');
+      body.innerHTML = '';
+      for (const agent of state.schema.agents) {
+        const config = state.config.agent_runtime.agents[agent];
+        const supported = state.schema.api_driver_supported_agents.includes(agent);
+        const tr = document.createElement('tr');
+        tr.className = agent === state.selectedAgent ? 'selected' : '';
+        tr.innerHTML = `
+          <td data-label="Agent"><button class="agent-name" type="button" data-agent="${agent}">${agent}</button></td>
+          <td data-label="Driver">
+            <select data-agent-driver="${agent}">
+              <option value="local">Codex/local</option>
+              <option value="llm_api" ${supported ? '' : 'disabled'}>API</option>
+            </select>
+          </td>
+          <td data-label="Provider">
+            <select data-agent-provider="${agent}">
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+            </select>
+          </td>
+          <td data-label="API 接线"><span class="pill ${supported ? 'ok' : 'warn'}">${supported ? 'wired' : 'local only'}</span></td>
+        `;
+        body.appendChild(tr);
+        tr.querySelector(`[data-agent-driver="${agent}"]`).value = config.driver || 'local';
+        tr.querySelector(`[data-agent-provider="${agent}"]`).value = config.api?.provider || 'openai';
+      }
+      body.querySelectorAll('[data-agent]').forEach((button) => {
+        button.addEventListener('click', () => {
+          state.selectedAgent = button.dataset.agent;
+          renderAgents();
+          renderAgentDetail();
+        });
+      });
+      body.querySelectorAll('[data-agent-driver]').forEach((select) => {
+        select.addEventListener('change', () => {
+          const agent = select.dataset.agentDriver;
+          state.config.agent_runtime.agents[agent].driver = select.value;
+          state.config.agent_runtime.mode = hasApiAgents() ? 'llm_api' : 'local';
+          render();
+        });
+      });
+      body.querySelectorAll('[data-agent-provider]').forEach((select) => {
+        select.addEventListener('change', () => {
+          const agent = select.dataset.agentProvider;
+          state.config.agent_runtime.agents[agent].api.provider = select.value;
+          renderAgentDetail();
+        });
+      });
+    }
+
+    function renderAgentDetail() {
+      const agent = state.selectedAgent;
+      const config = state.config.agent_runtime.agents[agent];
+      const provider = config.api?.provider || 'openai';
+      const defaults = state.config.agent_runtime.provider_defaults[provider] || {};
+      const supported = state.schema.api_driver_supported_agents.includes(agent);
+      $('detailTitle').textContent = agent;
+      $('detailSubtitle').textContent = supported ? '可切换到 API 驱动' : '当前未接线 API 驱动';
+      const fields = providerFields[provider];
+      $('agentDetail').innerHTML = `
+        <div class="form-grid">
+          <div class="field">
+            <label>Driver</label>
+            <select id="detail-driver">
+              <option value="local">Codex/local</option>
+              <option value="llm_api" ${supported ? '' : 'disabled'}>API</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Provider</label>
+            <select id="detail-provider">
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+            </select>
+          </div>
+          ${fields.map(([key, label]) => fieldHTML(`detail-${key}`, label, config.api?.[key] ?? '', defaults[key] ?? '')).join('')}
+        </div>
+        <div class="split-actions">
+          <button class="ghost" id="clearOverrides" type="button">清空覆盖项</button>
+        </div>
+      `;
+      $('detail-driver').value = config.driver || 'local';
+      $('detail-provider').value = provider;
+      $('detail-driver').addEventListener('change', (event) => {
+        config.driver = event.target.value;
+        state.config.agent_runtime.mode = hasApiAgents() ? 'llm_api' : 'local';
+        render();
+      });
+      $('detail-provider').addEventListener('change', (event) => {
+        config.api.provider = event.target.value;
+        render();
+      });
+      for (const [key] of fields) {
+        $(`detail-${key}`).addEventListener('input', (event) => {
+          const value = event.target.value;
+          if (value === '') {
+            delete config.api[key];
+          } else {
+            config.api[key] = typedValue(key, value);
+          }
+        });
+      }
+      $('clearOverrides').addEventListener('click', () => {
+        config.api = { provider };
+        renderAgentDetail();
+      });
+    }
+
+    function renderValidation() {
+      const list = $('validationList');
+      list.innerHTML = '';
+      if (!state.validation.length) {
+        list.innerHTML = '<div class="empty">当前配置可保存。API key 明文不会写入 YAML；这里只记录环境变量名。</div>';
+        return;
+      }
+      for (const issue of state.validation) {
+        const item = document.createElement('div');
+        item.className = 'issue';
+        item.innerHTML = `<strong>${issue.agent || '*'}</strong><br>${issue.message || JSON.stringify(issue)}`;
+        list.appendChild(item);
+      }
+    }
+
+    function fieldHTML(id, label, value, placeholder = '') {
+      const wide = ['api_key_env', 'base_url', 'model_env', 'model', 'anthropic_version'].some((key) => id.endsWith(key));
+      return `
+        <div class="field ${wide ? 'wide' : ''}">
+          <label for="${id}">${label}</label>
+          <input id="${id}" value="${escapeAttr(value)}" placeholder="${escapeAttr(placeholder)}">
+        </div>
+      `;
+    }
+
+    function typedValue(key, value) {
+      if (['temperature'].includes(key)) return Number(value);
+      if (['max_tokens', 'timeout_sec'].includes(key)) return Number.parseInt(value || '0', 10);
+      return value;
+    }
+
+    function hasApiAgents() {
+      return Object.values(state.config.agent_runtime.agents).some((agent) => agent.driver === 'llm_api');
+    }
+
+    function providerLabel(provider) {
+      return provider === 'openai' ? 'OpenAI' : 'Anthropic';
+    }
+
+    function escapeAttr(value) {
+      return String(value ?? '').replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;');
+    }
+
+    let toastTimer = null;
+    function toast(message) {
+      const node = $('toast');
+      node.textContent = message;
+      node.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => node.classList.remove('show'), 2200);
+    }
+
+    $('targetSelect').addEventListener('change', (event) => {
+      state.target = event.target.value;
+      loadConfig();
+    });
+    $('codexMode').addEventListener('click', () => setRuntimePreset('local'));
+    $('apiMode').addEventListener('click', () => setRuntimePreset('llm_api'));
+    $('reloadButton').addEventListener('click', loadConfig);
+    $('validateButton').addEventListener('click', validateConfig);
+    $('saveButton').addEventListener('click', saveConfig);
+
+    loadConfig().catch((error) => {
+      console.error(error);
+      toast(`载入失败：${error.message}`);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+hotspot:
+  title: "一、热点梳理"
+  function: "说明热什么、为什么热、热到什么程度。"
+  required_inputs:
+    - hotspot_candidates
+    - material_packages
+  must_answer:
+    - "近期知识库中反复出现的政策热点是什么。"
+    - "这些热点升温的政策问题和机构动因是什么。"
+    - "哪些热点具备继续比较分析的材料基础。"
+  forbidden:
+    - "逐文件摘要。"
+    - "没有材料支持的热度判断。"
+  output_shape:
+    - "热点总述"
+    - "热点列表"
+    - "升温原因"
+    - "可继续分析的重点热点"
+
+theme:
+  title: "二、主题归类"
+  function: "将热点放回既有主题体系，并说明交叉关系。"
+  required_inputs:
+    - theme_hotspot_matrix
+    - material_packages
+  must_answer:
+    - "每个热点归入哪个主主题。"
+    - "哪些热点跨越多个主题。"
+    - "是否存在分类争议或新兴主题。"
+  forbidden:
+    - "只列主题名而不解释归类理由。"
+    - "把交叉主题写成互斥分类。"
+  output_shape:
+    - "归类原则"
+    - "热点-主题矩阵"
+    - "交叉主题说明"
+
+comparison:
+  title: "三、政策前沿比较"
+  function: "按统一维度比较政策前沿。"
+  required_inputs:
+    - comparison_matrix
+    - material_packages
+  must_answer:
+    - "不同政策主体关注的问题是否相同。"
+    - "政策工具和实施机制有什么差异。"
+    - "哪些做法体现前沿变化。"
+  forbidden:
+    - "逐文件流水账。"
+    - "没有统一维度的横向比较。"
+    - "把弱支撑材料写成确定结论。"
+  output_shape:
+    - "比较总述"
+    - "维度化比较"
+    - "关键差异解释"
+    - "前沿判断"
+
+impact:
+  title: "四、影响研判"
+  function: "区分材料明确提出的影响和基于材料的谨慎推导。"
+  required_inputs:
+    - impact_table
+    - material_packages
+  must_answer:
+    - "热点对教育治理有什么影响。"
+    - "热点对学校、教师、学生、评价和平台有什么影响。"
+    - "哪些判断需要谨慎表达。"
+  forbidden:
+    - "把推导写成政策事实。"
+    - "提出材料包外的新风险。"
+  output_shape:
+    - "影响总述"
+    - "分对象影响"
+    - "风险与不确定性"
+
+insight:
+  title: "五、启发建议"
+  function: "从热点、比较和影响反推研究、治理和实践建议。"
+  required_inputs:
+    - insight_table
+    - policy_claim_material_matrix
+  must_answer:
+    - "对后续研究有什么启发。"
+    - "对政策治理和学校实践有什么启发。"
+    - "对知识库持续监测有什么启发。"
+  forbidden:
+    - "新增与前文无关的建议。"
+    - "给出超出材料包支撑强度的行动建议。"
+  output_shape:
+    - "研究启发"
+    - "治理启发"
+    - "实践启发"
+    - "监测启发"

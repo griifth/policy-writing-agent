@@ -1,0 +1,110 @@
+task:
+  topic: "AI 教育政策热点识别与前沿研判"
+  notebook_id: "b3d4fcf7-cefc-4cbc-8ccf-481b65b2651f"
+  knowledge_mode: "notebooklm"
+  audience: "教育政策研究人员"
+  style: "policy_research_report"
+  language: "zh-CN"
+  assurance: "draft"
+  traceability_owner: "notebooklm"
+  use_existing_theme_taxonomy: true
+  top_k_hotspots: 5
+  sections:
+    - hotspot
+    - theme
+    - comparison
+    - impact
+    - insight
+
+execution:
+  mode: "real"
+  notebooklm_cli_path: "/Users/hujingkai/Desktop/notebookcli2report/notebooklm-py-main/.venv/bin/notebooklm"
+  max_concurrency: 2
+  output_root: "runs"
+  overwrite_latest: true
+
+agent_runtime:
+  mode: "local"
+  default_driver: "local"
+  provider_defaults:
+    openai:
+      provider: "openai"
+      api_key_env: "OPENAI_API_KEY"
+      base_url: "https://api.openai.com/v1"
+      model_env: "OPENAI_MODEL"
+      model: "gpt-4.1-mini"
+      temperature: 0.2
+      max_tokens: 1600
+      timeout_sec: 120
+    anthropic:
+      provider: "anthropic"
+      api_key_env: "ANTHROPIC_API_KEY"
+      base_url: "https://api.anthropic.com"
+      anthropic_version: "2023-06-01"
+      model_env: "ANTHROPIC_MODEL"
+      model: "claude-3-5-sonnet-latest"
+      temperature: 0.2
+      max_tokens: 1600
+      timeout_sec: 120
+  agents:
+    QueryPlannerAgent:
+      driver: "local"
+      api:
+        provider: "openai"
+    MaterialPackAgent:
+      driver: "local"
+      api:
+        provider: "openai"
+    MatrixBuilderAgent:
+      driver: "local"
+      api:
+        provider: "openai"
+    SectionContractAgent:
+      driver: "local"
+      api:
+        provider: "openai"
+    SectionComposerAgent:
+      driver: "local"
+      api:
+        provider: "anthropic"
+    PlanReviewerAgent:
+      driver: "local"
+      api:
+        provider: "anthropic"
+    RetrievalCompletenessGate:
+      driver: "local"
+      api:
+        provider: "openai"
+    MaterialPackAudit:
+      driver: "local"
+      api:
+        provider: "openai"
+    MaterialCoverageReviewerAgent:
+      driver: "local"
+      api:
+        provider: "openai"
+    ClaimAuditAgent:
+      driver: "local"
+      api:
+        provider: "anthropic"
+    KillArgumentAgent:
+      driver: "local"
+      api:
+        provider: "anthropic"
+    ReportAssembler:
+      driver: "local"
+      api:
+        provider: "openai"
+
+theme_taxonomy:
+  - "AI 教育战略与国家规划"
+  - "数字教育基础设施"
+  - "教育大模型与生成式 AI"
+  - "AI 素养与数字素养"
+  - "教师 AI 能力与专业发展"
+  - "课程、教学与学习方式变革"
+  - "智能评估、学习分析与个性化学习"
+  - "教育公平、包容性与弱势群体支持"
+  - "数据治理、隐私、安全与伦理"
+  - "AI 教育产业生态与公私合作"
+  - "政策评估、实施监测与行动计划"

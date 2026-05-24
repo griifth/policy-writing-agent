@@ -1,0 +1,84 @@
+hotspot:
+  required_fields:
+    - hotspot_name
+    - keywords
+    - policy_problem
+    - involved_themes
+    - rise_reason
+    - representative_actors
+    - material_support_level
+  flexible_fields:
+    - emerging_dimension
+    - caution_note
+    - missing_information
+
+theme_mapping:
+  required_fields:
+    - main_theme
+    - sub_theme
+    - cross_themes
+    - classification_reason
+    - classification_tension
+  flexible_fields:
+    - emerging_dimension
+    - caution_note
+    - missing_information
+
+comparison:
+  required_fields:
+    - policy_goal
+    - target_group
+    - governance_actor
+    - policy_tool
+    - implementation_mechanism
+    - evaluation_mechanism
+    - risk_governance
+    - frontier_feature
+  flexible_fields:
+    - emerging_dimension
+    - caution_note
+    - missing_information
+
+impact:
+  required_fields:
+    - governance_impact
+    - school_practice_impact
+    - teacher_development_impact
+    - student_learning_impact
+    - education_evaluation_impact
+    - platform_resource_impact
+    - ethics_safety_impact
+  flexible_fields:
+    - emerging_dimension
+    - caution_note
+    - missing_information
+
+insight:
+  required_fields:
+    - research_insight
+    - governance_insight
+    - practice_insight
+    - monitoring_insight
+    - knowledge_base_insight
+  flexible_fields:
+    - emerging_dimension
+    - caution_note
+    - missing_information
+
+material_package:
+  required_fields:
+    - package_id
+    - hotspot
+    - main_theme
+    - cross_themes
+    - section_targets
+    - policy_points
+    - policy_tools
+    - actors
+    - mechanisms
+    - risks
+    - comparison_items
+    - impact_items
+    - claim_candidates
+    - caution_notes
+    - missing_questions

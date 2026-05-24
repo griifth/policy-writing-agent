@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Policy Writing Agent MVP</title>
+  <link rel="icon" href="data:image/gif;base64,R0lGODlhAQABAAAAACw=">
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #202124;
+      --muted: #5f6368;
+      --line: #d9dee3;
+      --surface: #ffffff;
+      --soft: #f6f8f5;
+      --green: #246b52;
+      --gold: #9a6b16;
+      --red: #9b3d2e;
+      --blue: #315a7d;
+      --shadow: 0 10px 30px rgba(32, 33, 36, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--ink);
+      background: #fbfaf7;
+      line-height: 1.65;
+    }
+
+    header {
+      background: #17201d;
+      color: #fff;
+    }
+
+    .hero {
+      max-width: 1180px;
+      min-height: 430px;
+      margin: 0 auto;
+      padding: 72px 28px 64px;
+      display: grid;
+      align-content: center;
+      gap: 24px;
+    }
+
+    .hero-board {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(120px, 1fr));
+      gap: 10px;
+      max-width: 980px;
+      margin-top: 10px;
+    }
+
+    .hero-node {
+      min-height: 84px;
+      padding: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .hero-node b {
+      display: block;
+      color: #fff;
+      font-size: 14px;
+      margin-bottom: 5px;
+    }
+
+    .hero-node span {
+      display: block;
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .eyebrow {
+      width: fit-content;
+      padding: 4px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.55);
+      border-radius: 999px;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 13px;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      max-width: 900px;
+      margin: 0;
+      font-size: clamp(36px, 6vw, 72px);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .hero p {
+      max-width: 780px;
+      margin: 0;
+      color: rgba(255, 255, 255, 0.88);
+      font-size: 19px;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 34px 28px 80px;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      border-bottom: 1px solid var(--line);
+      background: rgba(251, 250, 247, 0.94);
+      backdrop-filter: blur(12px);
+    }
+
+    .nav-inner {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 12px 28px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .nav-inner a {
+      color: var(--ink);
+      text-decoration: none;
+      font-size: 14px;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface);
+    }
+
+    section {
+      padding: 34px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h2 {
+      margin: 0 0 16px;
+      font-size: 30px;
+      letter-spacing: 0;
+      line-height: 1.2;
+    }
+
+    h3 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    p {
+      margin: 0 0 14px;
+    }
+
+    .lead {
+      max-width: 880px;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 22px;
+    }
+
+    .two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .panel p,
+    .panel li {
+      color: var(--muted);
+    }
+
+    .tag {
+      display: inline-block;
+      margin-bottom: 12px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: #fff;
+      background: var(--green);
+    }
+
+    .tag.gold {
+      background: var(--gold);
+    }
+
+    .tag.blue {
+      background: var(--blue);
+    }
+
+    .tag.red {
+      background: var(--red);
+    }
+
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(140px, 1fr));
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .step {
+      position: relative;
+      min-height: 126px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .step strong {
+      display: block;
+      font-size: 16px;
+      margin-bottom: 6px;
+    }
+
+    .step span {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .step small {
+      display: inline-grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      margin-bottom: 10px;
+      border-radius: 50%;
+      color: #fff;
+      background: var(--green);
+      font-weight: 700;
+    }
+
+    .architecture {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.95fr) minmax(320px, 1.25fr);
+      gap: 18px;
+      align-items: start;
+      margin-top: 22px;
+    }
+
+    .flow {
+      background: #111820;
+      color: #edf3ef;
+      border-radius: 8px;
+      padding: 18px;
+      overflow-x: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 14px;
+      line-height: 1.8;
+      white-space: pre;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 18px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th,
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    th {
+      background: var(--soft);
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    code,
+    pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    pre {
+      margin: 16px 0 0;
+      padding: 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      color: #edf3ef;
+      background: #111820;
+    }
+
+    .file-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 16px;
+      padding: 0;
+      list-style: none;
+    }
+
+    .file-list li {
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+
+    .notice {
+      margin-top: 18px;
+      padding: 14px 16px;
+      border-left: 4px solid var(--gold);
+      background: #fff8e7;
+      color: #4f3b14;
+    }
+
+    footer {
+      padding: 28px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 14px;
+    }
+
+    @media (max-width: 880px) {
+      .grid,
+      .grid.two,
+      .architecture,
+      .pipeline,
+      .hero-board,
+      .file-list {
+        grid-template-columns: 1fr;
+      }
+
+      .hero {
+        min-height: 360px;
+        padding: 52px 20px;
+      }
+
+      main,
+      .nav-inner {
+        padding-left: 20px;
+        padding-right: 20px;
+      }
+
+      h1 {
+        font-size: 40px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="hero">
+      <div class="eyebrow">NotebookLM-backed MVP</div>
+      <h1>Policy Writing Agent</h1>
+      <p>一个把政策知识库转化为热点研判报告的可执行写作流水线：先拆问题，再检索材料，再组织材料包，最后按章节契约生成报告并通过审查门禁。</p>
+      <div class="hero-board" aria-label="MVP 流程示意">
+        <div class="hero-node"><b>ReportTask</b><span>主题、notebook_id、章节、模式</span></div>
+        <div class="hero-node"><b>QueryJobs</b><span>六类 NotebookLM 检索任务</span></div>
+        <div class="hero-node"><b>MaterialPack</b><span>热点、主题、工具、影响、判断</span></div>
+        <div class="hero-node"><b>SectionDrafts</b><span>五个章节契约化写作</span></div>
+        <div class="hero-node"><b>ReviewGates</b><span>结构化 verdict 和终稿装配</span></div>
+      </div>
+    </div>
+  </header>
+
+  <nav aria-label="页面导航">
+    <div class="nav-inner">
+      <a href="#features">功能</a>
+      <a href="#architecture">架构</a>
+      <a href="#workflow">流程</a>
+      <a href="#usage">如何使用</a>
+      <a href="#outputs">产物</a>
+      <a href="#next">下一步</a>
+    </div>
+  </nav>
+
+  <main>
+    <section id="features">
+      <h2>这个 MVP 解决什么</h2>
+      <p class="lead">MVP 的目标不是替代 NotebookLM，也不是建设新的来源追溯系统。NotebookLM 负责知识库、来源和问答；本 Agent 负责把写作任务工程化，保证报告从材料到判断再到章节都有中间产物和审查记录。</p>
+
+      <div class="grid">
+        <div class="panel">
+          <span class="tag">功能一</span>
+          <h3>拆问题</h3>
+          <p>把“写一份热点研判报告”拆成全库扫描、主题归类、热点深挖、比较分析、影响研判和启发提炼六类 QueryJob。</p>
+        </div>
+        <div class="panel">
+          <span class="tag gold">功能二</span>
+          <h3>定维度</h3>
+          <p>使用 <code>dimension_registry.yaml</code> 固定热点、主题、比较、影响、启发五类字段，减少模型自由发挥。</p>
+        </div>
+        <div class="panel">
+          <span class="tag blue">功能三</span>
+          <h3>组织材料包</h3>
+          <p>将 NotebookLM 回答整理成 <code>MaterialPackage</code>，包含热点、主题、政策工具、影响、风险和可写判断。</p>
+        </div>
+        <div class="panel">
+          <span class="tag red">功能四</span>
+          <h3>控制报告结构</h3>
+          <p>通过 <code>POLICY_REPORT_PLAN.md</code> 和 <code>section_contracts.yaml</code> 控制每章职责，避免章节互相抢内容。</p>
+        </div>
+        <div class="panel">
+          <span class="tag">功能五</span>
+          <h3>材料转文章</h3>
+          <p>章节写作只消费材料包和判断-材料矩阵，缺材料时保留 <code>MATERIAL_NEEDED</code>，不编造判断。</p>
+        </div>
+        <div class="panel">
+          <span class="tag gold">功能六</span>
+          <h3>审查门禁</h3>
+          <p>生成 Plan、Retrieval、Material、ClaimScope、KillArgument 等审查报告，所有结果用统一 verdict 记录。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="architecture">
+      <h2>架构</h2>
+      <p class="lead">系统采用模块化流水线。NotebookLM 只通过 Adapter 使用；业务模块不直接拼命令，也不依赖 NotebookLM 当前 notebook 状态。</p>
+
+      <div class="architecture">
+        <div class="flow">ReportTask
+  ↓
+QueryPlanner
+  ↓
+NotebookLMAdapter
+  ↓
+MaterialPackBuilder
+  ↓
+MatrixBuilder
+  ↓
+SectionPlanner
+  ↓
+SectionComposer
+  ↓
+ReviewGates
+  ↓
+ReportAssembler
+  ↓
+ManifestWriter</div>
+
+        <div class="panel">
+          <h3>关键边界</h3>
+          <ul>
+            <li><code>NotebookLMAdapter</code> 是唯一能调用 NotebookLM CLI 的模块。</li>
+            <li><code>MaterialPackage</code> 是写作中间件，不承担来源追溯职责。</li>
+            <li><code>PolicyClaim-Material Matrix</code> 控制判断能出现在哪些章节。</li>
+            <li><code>ReviewGates</code> 只输出审查结果，不直接修改正文。</li>
+            <li><code>MANIFEST.md</code> 记录每个产物的路径和生产者。</li>
+          </ul>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>模块</th>
+            <th>输入</th>
+            <th>输出</th>
+            <th>职责边界</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>QueryPlanner</td>
+            <td>ReportTask、维度 schema、章节契约</td>
+            <td>query_jobs.json</td>
+            <td>只生成检索任务，不解释材料。</td>
+          </tr>
+          <tr>
+            <td>NotebookLMAdapter</td>
+            <td>QueryJob</td>
+            <td>query_results/*.json</td>
+            <td>封装 real/mock 两种模式。</td>
+          </tr>
+          <tr>
+            <td>MaterialPackBuilder</td>
+            <td>QueryResult</td>
+            <td>material_packages/*.json</td>
+            <td>整理材料，不写正文。</td>
+          </tr>
+          <tr>
+            <td>MatrixBuilder</td>
+            <td>MaterialPackage</td>
+            <td>比较矩阵、影响表、判断-材料矩阵</td>
+            <td>把材料转成可消费结构。</td>
+          </tr>
+          <tr>
+            <td>SectionComposer</td>
+            <td>章节契约、材料包、矩阵</td>
+            <td>section_drafts/*.md</td>
+            <td>只按材料生成章节草稿。</td>
+          </tr>
+          <tr>
+            <td>ReviewGates</td>
+            <td>计划、材料、章节、终稿</td>
+            <td>review_reports/*.json</td>
+            <td>只审查，不直接改稿。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="workflow">
+      <h2>运行流程</h2>
+      <p class="lead">一次运行会生成独立的 <code>runs/&lt;run_id&gt;/</code> 目录。每一步都有落盘产物，因此可以复核、重跑或接入后续自动化。</p>
+
+      <div class="pipeline">
+        <div class="step"><small>1</small><strong>任务配置</strong><span>读取 report_task.yaml，确定主题、notebook_id、章节和模式。</span></div>
+        <div class="step"><small>2</small><strong>检索规划</strong><span>生成六类 QueryJob，覆盖热点、主题、深挖、比较、影响、启发。</span></div>
+        <div class="step"><small>3</small><strong>材料加工</strong><span>调用 Adapter 得到 QueryResult，再合并成 MaterialPackage。</span></div>
+        <div class="step"><small>4</small><strong>章节写作</strong><span>根据报告计划和章节契约生成五个 Markdown 草稿。</span></div>
+        <div class="step"><small>5</small><strong>审查装配</strong><span>执行 review gates，生成 final_report.md 和 MANIFEST.md。</span></div>
+      </div>
+    </section>
+
+    <section id="usage">
+      <h2>如何使用</h2>
+      <p class="lead">当前默认使用 mock mode，因此不需要 NotebookLM 登录，也能完整验证流程和产物结构。</p>
+
+      <div class="grid two">
+        <div class="panel">
+          <h3>1. 运行 mock workflow</h3>
+          <pre>cd /Users/hujingkai/Documents/New\ project/policy-writing-agent
+python3 src/runner.py --task config/report_task.yaml --run-id demo</pre>
+          <p>运行后查看 <code>runs/demo/final_report.md</code> 和 <code>runs/demo/MANIFEST.md</code>。</p>
+        </div>
+        <div class="panel">
+          <h3>2. 接入真实 NotebookLM</h3>
+          <pre># 编辑 config/report_task.yaml
+task:
+  notebook_id: "你的 NotebookLM ID"
+
+execution:
+  mode: "real"</pre>
+          <p>real mode 会通过 <code>NotebookLMAdapter</code> 调用 NotebookLM CLI。NotebookLM 不可用时会输出结构化错误，不静默跳过。</p>
+        </div>
+      </div>
+
+      <div class="notice">
+        当前 MVP 已通过 mock 验证：六类 QueryJob、五个章节草稿、六个 review report、终稿附录和 MANIFEST 都能生成。
+      </div>
+    </section>
+
+    <section id="outputs">
+      <h2>核心产物</h2>
+      <p class="lead">这些产物是后续调试、审查和扩展的接口，不只是运行日志。</p>
+
+      <ul class="file-list">
+        <li>task_spec.json</li>
+        <li>query_jobs.json</li>
+        <li>query_results/*.json</li>
+        <li>material_packages/*.json</li>
+        <li>policy_claim_material_matrix.json</li>
+        <li>POLICY_REPORT_PLAN.md</li>
+        <li>section_drafts/01_hotspot.md</li>
+        <li>section_drafts/02_theme.md</li>
+        <li>section_drafts/03_comparison.md</li>
+        <li>section_drafts/04_impact.md</li>
+        <li>section_drafts/05_insight.md</li>
+        <li>review_reports/*.json</li>
+        <li>final_report.md</li>
+        <li>MANIFEST.md</li>
+        <li>workflow_state.json</li>
+      </ul>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Verdict</th>
+            <th>含义</th>
+            <th>处理方式</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>PASS</td><td>检查通过。</td><td>继续下一步。</td></tr>
+          <tr><td>WARN</td><td>可继续，但需要谨慎表达。</td><td>降低判断强度。</td></tr>
+          <tr><td>BLOCKED</td><td>缺前置材料或字段。</td><td>生成 follow-up QueryJob。</td></tr>
+          <tr><td>FAIL</td><td>计划或产物不合格。</td><td>返回上游重做。</td></tr>
+          <tr><td>ERROR</td><td>工具或格式错误。</td><td>修复执行环境或输入。</td></tr>
+          <tr><td>NOT_APPLICABLE</td><td>检查过，确实不适用。</td><td>记录后跳过。</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="next">
+      <h2>下一步扩展</h2>
+      <div class="grid">
+        <div class="panel">
+          <span class="tag">短期</span>
+          <h3>真实 NotebookLM 验证</h3>
+          <p>把 mock mode 切到 real mode，用真实 notebook_id 跑一次完整流程，观察 NotebookLM 回答是否稳定满足 expected_fields。</p>
+        </div>
+        <div class="panel">
+          <span class="tag blue">中期</span>
+          <h3>补问循环</h3>
+          <p>当 RetrievalCompleteness 或 MaterialPackAudit 返回 BLOCKED 时，自动生成 follow-up QueryJob 并重建材料包。</p>
+        </div>
+        <div class="panel">
+          <span class="tag gold">长期</span>
+          <h3>报告质量增强</h3>
+          <p>扩展 ClaimScopeAudit 和 KillArgumentGate，让它们能更严格识别 unsupported claim、overclaim 和章节重叠。</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Policy Writing Agent MVP · NotebookLM handles source traceability; this agent handles writing workflow control.
+  </footer>
+</body>
+</html>
