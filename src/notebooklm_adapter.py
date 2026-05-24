@@ -12,9 +12,16 @@ from io_utils import utc_timestamp
 
 
 class NotebookLMAdapter:
-    def __init__(self, mode: str = "mock", cli_path: str | None = None) -> None:
+    ALLOWED_COMMANDS = {
+        ("auth", "check"),
+        ("source", "list"),
+        ("ask",),
+    }
+
+    def __init__(self, mode: str = "mock", cli_path: str | None = None, command_log_path: str | Path | None = None) -> None:
         self.mode = mode
         self.cli_path = cli_path or os.environ.get("NOTEBOOKLM_CLI_PATH") or shutil.which("notebooklm")
+        self.command_log_path = Path(command_log_path) if command_log_path else None
 
     def _cli(self) -> str | None:
         if self.cli_path and Path(self.cli_path).exists():
@@ -27,12 +34,7 @@ class NotebookLMAdapter:
         cli = self._cli()
         if not cli:
             return {"status": "ERROR", "mode": "real", "summary": "notebooklm CLI was not found on PATH."}
-        result = subprocess.run(
-            [cli, "auth", "check", "--test", "--json"],
-            text=True,
-            capture_output=True,
-            check=False,
-        )
+        result = self._run_cli(cli, ["auth", "check", "--test", "--json"])
         return self._parse_cli_result(result)
 
     def list_sources(self, notebook_id: str) -> list[dict[str, Any]]:
@@ -47,12 +49,7 @@ class NotebookLMAdapter:
         cli = self._cli()
         if not cli:
             return []
-        result = subprocess.run(
-            [cli, "source", "list", "-n", notebook_id, "--json"],
-            text=True,
-            capture_output=True,
-            check=False,
-        )
+        result = self._run_cli(cli, ["source", "list", "-n", notebook_id, "--json"])
         parsed = self._parse_cli_result(result)
         return parsed.get("sources", []) if isinstance(parsed, dict) else []
 
@@ -64,12 +61,11 @@ class NotebookLMAdapter:
             return self._cli_missing_result(job)
         notebook_id = job["notebook_id"]
         prompt = job["prompt"]
-        result = subprocess.run(
-            [cli, "ask", "-n", notebook_id, "--json", prompt],
-            text=True,
-            capture_output=True,
-            check=False,
+        result = self._run_cli(
+            cli,
+            ["ask", "-n", notebook_id, "--json", prompt],
             timeout=180,
+            log_args=["ask", "-n", notebook_id, "--json", "<prompt>"],
         )
         parsed = self._parse_cli_result(result)
         structured_answer = self._extract_structured_answer(parsed, job.get("expected_fields", []))
@@ -110,14 +106,52 @@ class NotebookLMAdapter:
                 "summary": "notebooklm CLI was not found on PATH.",
                 "generated_at": utc_timestamp(),
             }
+        result = self._run_cli(
+            cli,
+            ["ask", "-n", notebook_id, "--prompt-file", prompt_path, "--json"],
+            timeout=180,
+            log_args=["ask", "-n", notebook_id, "--prompt-file", prompt_path, "--json"],
+        )
+        return self._parse_cli_result(result)
+
+    def _run_cli(
+        self,
+        cli: str,
+        args: list[str],
+        timeout: int | None = None,
+        log_args: list[str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        command_key = tuple(args[:2]) if args[:2] in (["auth", "check"], ["source", "list"]) else tuple(args[:1])
+        if command_key not in self.ALLOWED_COMMANDS:
+            raise RuntimeError(f"NotebookLM command is not allowed by capability policy: {' '.join(args)}")
+        started_at = utc_timestamp()
         result = subprocess.run(
-            [cli, "ask", "-n", notebook_id, "--prompt-file", prompt_path, "--json"],
+            [cli, *args],
             text=True,
             capture_output=True,
             check=False,
-            timeout=180,
+            timeout=timeout,
         )
-        return self._parse_cli_result(result)
+        self._append_command_log(
+            {
+                "started_at": started_at,
+                "finished_at": utc_timestamp(),
+                "mode": self.mode,
+                "cli": cli,
+                "args": log_args or args,
+                "returncode": result.returncode,
+                "stdout_bytes": len(result.stdout.encode("utf-8")),
+                "stderr_bytes": len(result.stderr.encode("utf-8")),
+            }
+        )
+        return result
+
+    def _append_command_log(self, event: dict[str, Any]) -> None:
+        if not self.command_log_path:
+            return
+        self.command_log_path.parent.mkdir(parents=True, exist_ok=True)
+        with self.command_log_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(event, ensure_ascii=False) + "\n")
 
     def _parse_cli_result(self, result: subprocess.CompletedProcess[str]) -> dict[str, Any]:
         if result.returncode != 0:

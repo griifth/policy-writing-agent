@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from io_utils import utc_timestamp
+from review_gates import file_sha256
 
 
 def build_manifest(run_dir: str | Path, artifacts: list[dict[str, Any]]) -> str:
@@ -14,11 +15,11 @@ def build_manifest(run_dir: str | Path, artifacts: list[dict[str, Any]]) -> str:
         f"- Run directory: `{run_dir}`",
         f"- Generated at: {utc_timestamp()}",
         "",
-        "| Artifact | Type | Producer | Path |",
-        "|---|---|---|---|",
+        "| Artifact | Type | Producer | SHA256 | Path |",
+        "|---|---|---|---|---|",
     ]
     for artifact in artifacts:
-        lines.append(f"| {artifact['name']} | {artifact['type']} | {artifact['producer']} | `{artifact['path']}` |")
+        lines.append(f"| {artifact['name']} | {artifact['type']} | {artifact['producer']} | `{artifact['sha256']}` | `{artifact['path']}` |")
     lines.append("")
     return "\n".join(lines)
 
@@ -33,6 +34,7 @@ def collect_artifacts(run_dir: str | Path) -> list[dict[str, Any]]:
                     "name": path.name,
                     "type": path.suffix.lstrip(".") or "file",
                     "producer": _producer_for(path.relative_to(run_dir)),
+                    "sha256": file_sha256(path),
                     "path": str(path.relative_to(run_dir)),
                 }
             )

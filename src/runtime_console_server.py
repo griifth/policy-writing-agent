@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -57,7 +56,9 @@ class RuntimeConsoleHandler(BaseHTTPRequestHandler):
             self._handle_save_config()
             return
         if parsed.path == "/api/validate":
-            payload = self._read_json()
+            payload = self._read_json_or_error()
+            if payload is None:
+                return
             config = payload.get("config", {})
             self._send_json({"validation": build_agent_runtime(config.get("agent_runtime", {})).validate(), "env": _env_status(config)})
             return
@@ -67,7 +68,9 @@ class RuntimeConsoleHandler(BaseHTTPRequestHandler):
         print(f"{self.address_string()} - {format % args}")
 
     def _handle_save_config(self) -> None:
-        payload = self._read_json()
+        payload = self._read_json_or_error()
+        if payload is None:
+            return
         target = str(payload.get("target", "real"))
         if target not in CONFIG_TARGETS:
             self._send_json({"error": "invalid_target", "allowed": sorted(CONFIG_TARGETS)}, status=400)
@@ -102,6 +105,13 @@ class RuntimeConsoleHandler(BaseHTTPRequestHandler):
             raise ValueError("Expected JSON object payload.")
         return payload
 
+    def _read_json_or_error(self) -> dict[str, Any] | None:
+        try:
+            return self._read_json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            self._send_json({"error": "invalid_json", "message": str(exc)}, status=400)
+            return None
+
     def _send_file(self, path: Path, content_type: str) -> None:
         if not path.exists():
             self._send_json({"error": "file_not_found", "path": str(path)}, status=404)
@@ -135,30 +145,18 @@ def _runtime_schema() -> dict[str, Any]:
         "targets": sorted(CONFIG_TARGETS),
         "agents": AGENT_NAMES,
         "api_driver_supported_agents": sorted(API_DRIVER_SUPPORTED_AGENTS),
-        "drivers": ["local", "llm_api"],
-        "providers": ["openai", "anthropic"],
+        "drivers": ["local"],
+        "providers": [],
+        "capability_policy": {
+            "external_calls": ["notebooklm_cli"],
+            "llm_api": False,
+            "notebooklm_skill_mutation": False,
+        },
     }
 
 
 def _env_status(config: dict[str, Any]) -> dict[str, bool]:
-    env_names: set[str] = set()
-    runtime = config.get("agent_runtime", {})
-    defaults = runtime.get("provider_defaults", {})
-    for provider_config in defaults.values():
-        if isinstance(provider_config, dict):
-            for key in ("api_key_env", "model_env"):
-                value = provider_config.get(key)
-                if value:
-                    env_names.add(str(value))
-    for agent_config in runtime.get("agents", {}).values():
-        if isinstance(agent_config, dict):
-            api = agent_config.get("api", {})
-            if isinstance(api, dict):
-                for key in ("api_key_env", "model_env"):
-                    value = api.get(key)
-                    if value:
-                        env_names.add(str(value))
-    return {name: bool(os.environ.get(name)) for name in sorted(env_names)}
+    return {}
 
 
 def dump_yaml(payload: Any) -> str:
