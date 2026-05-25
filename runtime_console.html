@@ -660,8 +660,9 @@
       runtime.orchestrator ||= { driver: 'codex' };
       runtime.orchestrator.driver = 'codex';
       runtime.api_providers ||= {};
-      ensureProvider('openai', 'https://api.openai.com/v1', 'OPENAI_API_KEY');
-      ensureProvider('anthropic', 'https://api.anthropic.com/v1', 'ANTHROPIC_API_KEY');
+      ensureProvider('openai', 'https://api.openai.com/v1', 'OPENAI_API_KEY', '', 1800);
+      ensureProvider('anthropic', 'https://api.anthropic.com/v1', 'ANTHROPIC_API_KEY', '', 1800);
+      ensureProvider('deepseek', 'https://api.deepseek.com', 'DEEPSEEK_API_KEY', 'deepseek-v4-pro', 100000);
       runtime.capability_policy ||= policyFor(runtime.runtime_profile);
       runtime.agents ||= {};
       for (const agent of state.schema.agents) {
@@ -673,21 +674,21 @@
         if (agent === 'NotebookLMAdapter') {
           runtime.agents[agent].driver = 'codex';
         }
-        runtime.agents[agent].provider ||= 'openai';
-        runtime.agents[agent].model ||= runtime.api_providers.openai.default_model || '';
-        runtime.agents[agent].temperature ??= runtime.api_providers.openai.temperature ?? 0.2;
-        runtime.agents[agent].max_tokens ??= runtime.api_providers.openai.max_tokens ?? 1800;
+        runtime.agents[agent].provider ||= 'deepseek';
+        runtime.agents[agent].model ||= runtime.api_providers.deepseek.default_model || '';
+        runtime.agents[agent].temperature ??= runtime.api_providers.deepseek.temperature ?? 0.2;
+        runtime.agents[agent].max_tokens ??= runtime.api_providers.deepseek.max_tokens ?? 100000;
         delete runtime.agents[agent].api;
       }
     }
 
-    function ensureProvider(name, baseUrl, apiKeyEnv) {
+    function ensureProvider(name, baseUrl, apiKeyEnv, defaultModel, maxTokens) {
       const provider = state.config.agent_runtime.api_providers[name] ||= {};
       provider.base_url ||= baseUrl;
       provider.api_key_env ||= apiKeyEnv;
-      provider.default_model ??= '';
+      provider.default_model ??= defaultModel;
       provider.temperature ??= 0.2;
-      provider.max_tokens ??= 1800;
+      provider.max_tokens ??= maxTokens;
     }
 
     function normalizeDriver(value) {
@@ -927,6 +928,7 @@
             <select id="detail-provider" ${apiSupported ? '' : 'disabled'}>
               <option value="openai">OpenAI</option>
               <option value="anthropic">Anthropic</option>
+              <option value="deepseek">DeepSeek</option>
             </select>
           </div>
           <div class="field">

@@ -11,7 +11,7 @@ Build a NotebookLM-backed writing agent that can produce a policy task or hotspo
 - Only call NotebookLM and knowledge sources through the local `notebooklm` CLI.
 - Do not edit or rewrite `/Users/hujingkai/.agents/skills/notebooklm/SKILL.md`.
 - Do not add browser, web-search, or ARIS external reviewer calls to the report generation path.
-- OpenAI/Anthropic-compatible APIs are allowed only as writing executors in `api_assisted`, and may consume only run artifacts prepared by Codex.
+- OpenAI/Anthropic/DeepSeek-compatible APIs are allowed only as writing executors in `api_assisted`, and may consume only run artifacts prepared by Codex.
 - Keep the automation default in `notebooklm_only` unless the round explicitly tests API-assisted writing.
 - Do not broaden the project into a generic agent framework, LaTeX paper submission workflow, or ARIS clone.
 - Keep each subagent boundary explicit: planning, NotebookLM retrieval, material packaging, matrix building, section planning, section writing, review, assembly, integration.

@@ -1,5 +1,64 @@
 # Optimization Progress
 
+## 2026-05-25 Round 3: DeepSeek API Provider Defaults
+
+### Main-Agent Decision
+
+Add DeepSeek as an OpenAI-compatible writing provider without storing secrets in the repository. The runtime now treats `deepseek` as an allowed API provider for `api_assisted` writing, with `DEEPSEEK_API_KEY` as the required environment variable, `https://api.deepseek.com` as the base URL, `deepseek-v4-pro` as the default model, and `100000` as the max token setting.
+
+The default workflow remains `runtime_profile: notebooklm_only` and `SectionComposerAgent.driver: codex`, so this change does not trigger live API calls unless the user explicitly switches the writer to API mode.
+
+### Files Changed
+
+- `src/agent_runtime.py`
+- `runtime_console.html`
+- `config/report_task.yaml`
+- `config/report_task.real.yaml`
+- `agent.md`
+- `docs/codex_agent_writing_architecture.md`
+- `docs/optimization_guardrails.md`
+- `docs/optimization_progress.md`
+
+### Validation
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile src/*.py
+PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY'
+from io_utils import load_yaml
+from agent_runtime import build_agent_runtime
+for path in ['config/report_task.yaml','config/report_task.real.yaml']:
+    cfg = load_yaml(path)
+    issues = build_agent_runtime(cfg.get('agent_runtime', {})).validate()
+    print(path, 'PASS' if not issues else issues)
+PY
+PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 DEEPSEEK_API_KEY=dummy python3 - <<'PY'
+from copy import deepcopy
+from io_utils import load_yaml
+from agent_runtime import build_agent_runtime
+cfg = load_yaml('config/report_task.yaml')['agent_runtime']
+api_cfg = deepcopy(cfg)
+api_cfg['runtime_profile'] = 'api_assisted'
+api_cfg['capability_policy'] = {'external_calls': ['notebooklm_cli', 'llm_api'], 'llm_api': True, 'notebooklm_skill_mutation': False}
+api_cfg['agents']['SectionComposerAgent']['driver'] = 'api'
+print(build_agent_runtime(api_cfg).validate())
+PY
+PYTHONDONTWRITEBYTECODE=1 python3 src/runner.py --task config/report_task.yaml --run-id deepseek_provider_final_smoke
+python3 src/runtime_console_server.py --host 127.0.0.1 --port 8791
+```
+
+Result:
+
+- Python compile passed.
+- Default mock and real configs validate with no runtime issues.
+- Synthetic `api_assisted` config with a present `DEEPSEEK_API_KEY` validates.
+- Mock workflow completed in default `notebooklm_only` mode without triggering a live API call.
+- Runtime console shows DeepSeek as a provider option and displays `deepseek-v4-pro` with `100000` max tokens for `SectionComposerAgent`.
+
+### Known Warnings
+
+- No secret is written to tracked files; runtime validation still requires `DEEPSEEK_API_KEY` to exist in the process environment before a DeepSeek-backed API run.
+- No live DeepSeek completion has been run yet in this round.
+
 ## 2026-05-25 Round 2: Runtime Profile Split For API-Assisted Writing
 
 ### Main-Agent Decision

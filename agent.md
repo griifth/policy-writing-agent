@@ -39,7 +39,7 @@ Start the local console to inspect and edit the NotebookLM knowledge boundary an
 python3 src/runtime_console_server.py --host 127.0.0.1 --port 8787
 ```
 
-Open `http://127.0.0.1:8787/`. The console can switch between mock/real configs, select `notebooklm_only` or `api_assisted`, configure OpenAI/Anthropic provider metadata, inspect agent routing, and save YAML.
+Open `http://127.0.0.1:8787/`. The console can switch between mock/real configs, select `notebooklm_only` or `api_assisted`, configure OpenAI/Anthropic/DeepSeek provider metadata, inspect agent routing, and save YAML.
 
 ## Agent Runtime
 
@@ -65,6 +65,11 @@ agent_runtime:
       base_url: "https://api.anthropic.com/v1"
       api_key_env: "ANTHROPIC_API_KEY"
       default_model: ""
+    deepseek:
+      base_url: "https://api.deepseek.com"
+      api_key_env: "DEEPSEEK_API_KEY"
+      default_model: "deepseek-v4-pro"
+      max_tokens: 100000
   capability_policy:
     external_calls:
       - "notebooklm_cli"
@@ -86,8 +91,9 @@ agent_runtime:
   agents:
     SectionComposerAgent:
       driver: "api"
-      provider: "openai"
-      model: "<model-name>"
+      provider: "deepseek"
+      model: "deepseek-v4-pro"
+      max_tokens: 100000
 ```
 
 Every run writes `agent_runtime.json` and `agent_runtime_validation.json` so the capability policy, provider metadata, and driver choices are auditable. At this stage, the API execution path is wired for `SectionComposerAgent`; review gates remain local deterministic guards.

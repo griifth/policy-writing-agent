@@ -43,6 +43,12 @@ agent_runtime:
       default_model: ""
       temperature: 0.2
       max_tokens: 1800
+    deepseek:
+      base_url: "https://api.deepseek.com"
+      api_key_env: "DEEPSEEK_API_KEY"
+      default_model: "deepseek-v4-pro"
+      temperature: 0.2
+      max_tokens: 100000
   capability_policy:
     external_calls:
       - "notebooklm_cli"
@@ -59,8 +65,9 @@ agent_runtime:
       driver: "codex"
     SectionComposerAgent:
       driver: "codex"
-      provider: "openai"
-      model: ""
+      provider: "deepseek"
+      model: "deepseek-v4-pro"
+      max_tokens: 100000
     PlanReviewerAgent:
       driver: "codex"
     RetrievalCompletenessGate:

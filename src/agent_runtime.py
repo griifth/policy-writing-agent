@@ -31,7 +31,7 @@ AGENT_NAMES = [
 
 RUNTIME_PROFILES = {"notebooklm_only", "api_assisted"}
 DRIVERS = {"codex", "api"}
-API_PROVIDERS = {"openai", "anthropic"}
+API_PROVIDERS = {"openai", "anthropic", "deepseek"}
 API_DRIVER_SUPPORTED_AGENTS = {"SectionComposerAgent"}
 KNOWLEDGE_AGENT_NAMES = {"NotebookLMAdapter"}
 
@@ -186,7 +186,7 @@ class AgentRuntime:
                 {
                     "severity": "ERROR",
                     "agent": agent_name,
-                    "message": f"Unsupported API provider: {provider_name}. Expected openai or anthropic.",
+                    "message": f"Unsupported API provider: {provider_name}. Expected one of: {', '.join(sorted(API_PROVIDERS))}.",
                 }
             )
         elif provider_name not in self.api_providers:
@@ -240,6 +240,7 @@ class AgentRuntime:
                     "base_url": provider.get("base_url"),
                     "api_key_env": provider.get("api_key_env"),
                     "default_model": provider.get("default_model"),
+                    "max_tokens": provider.get("max_tokens"),
                 }
                 for name, provider in self.api_providers.items()
             },
@@ -248,6 +249,7 @@ class AgentRuntime:
                     "driver": config.get("driver", self.default_driver),
                     "provider": config.get("provider"),
                     "model": config.get("model"),
+                    "max_tokens": config.get("max_tokens"),
                 }
                 for agent_name, config in self.agents.items()
             },
@@ -263,7 +265,7 @@ class AgentRuntime:
 
         provider_name = str(config["provider"])
         provider = self.api_providers[provider_name]
-        if provider_name == "openai":
+        if provider_name in {"openai", "deepseek"}:
             return _complete_openai(provider, config, prompt)
         if provider_name == "anthropic":
             return _complete_anthropic(provider, config, prompt)
@@ -368,7 +370,7 @@ def _build_agent_config(
 ) -> dict[str, Any]:
     api_block = raw.get("api") if isinstance(raw.get("api"), dict) else {}
     driver = _normalize_driver(raw.get("executor", raw.get("driver", default_driver)))
-    provider = str(raw.get("provider", api_block.get("provider", "openai")))
+    provider = str(raw.get("provider", api_block.get("provider", "deepseek")))
     provider_config = api_providers.get(provider, {})
     model = str(raw.get("model", api_block.get("model", provider_config.get("default_model", ""))))
     return {
@@ -401,12 +403,16 @@ def _normalize_calls(value: Any) -> list[str]:
 def _default_base_url(provider: str) -> str:
     if provider == "anthropic":
         return "https://api.anthropic.com/v1"
+    if provider == "deepseek":
+        return "https://api.deepseek.com"
     return "https://api.openai.com/v1"
 
 
 def _default_api_key_env(provider: str) -> str:
     if provider == "anthropic":
         return "ANTHROPIC_API_KEY"
+    if provider == "deepseek":
+        return "DEEPSEEK_API_KEY"
     return "OPENAI_API_KEY"
 
 

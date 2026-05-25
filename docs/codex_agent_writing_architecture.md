@@ -9,7 +9,7 @@
 - 不调用浏览器检索、Web 搜索或 ARIS 外部 reviewer。
 - Codex 始终是主编排者；`NotebookLMAdapter` 不能切换为 API。
 - `notebooklm_only` 下所有写作 agent 都是 Codex/local。
-- `api_assisted` 下，已接线的写作 agent 可调用 OpenAI/Anthropic 兼容配置，但只能读取本轮材料包、矩阵、章节契约和 review artifact。
+- `api_assisted` 下，已接线的写作 agent 可调用 OpenAI/Anthropic/DeepSeek 兼容配置，但只能读取本轮材料包、矩阵、章节契约和 review artifact。
 - 缺材料时保留 `MATERIAL_NEEDED` 或 follow-up query，不编造材料。
 
 ## 总流程
@@ -150,8 +150,9 @@ agent_runtime:
   agents:
     SectionComposerAgent:
       driver: "api"
-      provider: "openai"
-      model: "<model-name>"
+      provider: "deepseek"
+      model: "deepseek-v4-pro"
+      max_tokens: 100000
 ```
 
 `api_assisted` 只改变写作执行器，不改变知识库边界。API agent 收到的是 Codex 组装的材料包、矩阵、claim 和章节契约；它不能直接调用 NotebookLM、浏览器、Web 搜索或本地 skill。
