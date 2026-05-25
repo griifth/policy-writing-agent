@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from agent_runtime import AGENT_NAMES, API_DRIVER_SUPPORTED_AGENTS, build_agent_runtime
+from agent_runtime import AGENT_NAMES, API_DRIVER_SUPPORTED_AGENTS, API_PROVIDERS, build_agent_runtime
 from io_utils import load_yaml, write_text
 
 
@@ -145,8 +146,9 @@ def _runtime_schema() -> dict[str, Any]:
         "targets": sorted(CONFIG_TARGETS),
         "agents": AGENT_NAMES,
         "api_driver_supported_agents": sorted(API_DRIVER_SUPPORTED_AGENTS),
-        "drivers": ["local"],
-        "providers": [],
+        "runtime_profiles": ["notebooklm_only", "api_assisted"],
+        "drivers": ["codex", "api"],
+        "providers": sorted(API_PROVIDERS),
         "capability_policy": {
             "external_calls": ["notebooklm_cli"],
             "llm_api": False,
@@ -155,8 +157,19 @@ def _runtime_schema() -> dict[str, Any]:
     }
 
 
-def _env_status(config: dict[str, Any]) -> dict[str, bool]:
-    return {}
+def _env_status(config: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    runtime = config.get("agent_runtime", {}) if isinstance(config.get("agent_runtime", {}), dict) else {}
+    providers = runtime.get("api_providers", {}) if isinstance(runtime.get("api_providers", {}), dict) else {}
+    env: dict[str, dict[str, Any]] = {}
+    for provider, provider_config in providers.items():
+        if not isinstance(provider_config, dict):
+            continue
+        api_key_env = str(provider_config.get("api_key_env", ""))
+        env[str(provider)] = {
+            "api_key_env": api_key_env,
+            "present": bool(api_key_env and os.environ.get(api_key_env)),
+        }
+    return env
 
 
 def dump_yaml(payload: Any) -> str:

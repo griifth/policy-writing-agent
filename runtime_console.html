@@ -509,7 +509,7 @@
     <aside class="rail">
       <div class="brand">
         <h1>Runtime Console</h1>
-        <p>维护 NotebookLM-only 写作流程配置、agent 边界和运行命令。</p>
+        <p>维护 NotebookLM 知识库边界、Codex/API 写作执行器和运行命令。</p>
       </div>
 
       <div class="rail-section">
@@ -528,8 +528,8 @@
             <span>规则流程驱动，不调用写作 API。</span>
           </button>
           <button class="mode-button api" id="apiMode" type="button">
-            <strong>External API Disabled</strong>
-            <span>当前禁用：项目只允许 NotebookLM CLI 外部调用。</span>
+            <strong>API Assisted</strong>
+            <span>知识库仍走 NotebookLM，章节写作可走 API。</span>
           </button>
         </div>
       </div>
@@ -578,7 +578,7 @@
             <div class="panel-head">
               <div>
                 <h3>Capability Boundary</h3>
-                <span>当前报告生成路径只允许 NotebookLM CLI 获取知识库信息。</span>
+                <span>知识库只允许 NotebookLM CLI；写作执行器可按 profile 切换。</span>
               </div>
             </div>
             <div class="panel-body provider-grid" id="providerGrid"></div>
@@ -588,7 +588,7 @@
             <div class="panel-head">
               <div>
                 <h3>Agent Routing</h3>
-                <span>每个 agent 保持 local driver；NotebookLMAdapter 是唯一 CLI 网关。</span>
+                <span>NotebookLMAdapter 是唯一知识库网关；支持的写作 agent 可选 Codex/API。</span>
               </div>
             </div>
             <div class="panel-body" style="padding: 0;">
@@ -650,20 +650,68 @@
 
     function ensureRuntime() {
       state.config.agent_runtime ||= {};
-      state.config.agent_runtime.mode = 'local';
-      state.config.agent_runtime.default_driver = 'local';
+      const runtime = state.config.agent_runtime;
+      runtime.runtime_profile ||= runtime.mode === 'api' ? 'api_assisted' : 'notebooklm_only';
+      delete runtime.mode;
+      runtime.default_driver = normalizeDriver(runtime.default_driver || 'codex');
       delete state.config.agent_runtime.provider_defaults;
-      state.config.agent_runtime.capability_policy ||= {
-        external_calls: ['notebooklm_cli'],
-        llm_api: false,
-        notebooklm_skill_mutation: false
-      };
-      state.config.agent_runtime.agents ||= {};
+      runtime.knowledge_runtime ||= { provider: 'notebooklm_cli' };
+      runtime.knowledge_runtime.provider = 'notebooklm_cli';
+      runtime.orchestrator ||= { driver: 'codex' };
+      runtime.orchestrator.driver = 'codex';
+      runtime.api_providers ||= {};
+      ensureProvider('openai', 'https://api.openai.com/v1', 'OPENAI_API_KEY');
+      ensureProvider('anthropic', 'https://api.anthropic.com/v1', 'ANTHROPIC_API_KEY');
+      runtime.capability_policy ||= policyFor(runtime.runtime_profile);
+      runtime.agents ||= {};
       for (const agent of state.schema.agents) {
-        state.config.agent_runtime.agents[agent] ||= { driver: 'local' };
-        state.config.agent_runtime.agents[agent].driver = 'local';
-        delete state.config.agent_runtime.agents[agent].api;
+        runtime.agents[agent] ||= { driver: 'codex' };
+        runtime.agents[agent].driver = normalizeDriver(runtime.agents[agent].driver || runtime.default_driver);
+        if (!isApiSupported(agent) && runtime.agents[agent].driver === 'api') {
+          runtime.agents[agent].driver = 'codex';
+        }
+        if (agent === 'NotebookLMAdapter') {
+          runtime.agents[agent].driver = 'codex';
+        }
+        runtime.agents[agent].provider ||= 'openai';
+        runtime.agents[agent].model ||= runtime.api_providers.openai.default_model || '';
+        runtime.agents[agent].temperature ??= runtime.api_providers.openai.temperature ?? 0.2;
+        runtime.agents[agent].max_tokens ??= runtime.api_providers.openai.max_tokens ?? 1800;
+        delete runtime.agents[agent].api;
       }
+    }
+
+    function ensureProvider(name, baseUrl, apiKeyEnv) {
+      const provider = state.config.agent_runtime.api_providers[name] ||= {};
+      provider.base_url ||= baseUrl;
+      provider.api_key_env ||= apiKeyEnv;
+      provider.default_model ??= '';
+      provider.temperature ??= 0.2;
+      provider.max_tokens ??= 1800;
+    }
+
+    function normalizeDriver(value) {
+      return value === 'local' ? 'codex' : (value || 'codex');
+    }
+
+    function policyFor(profile) {
+      return profile === 'api_assisted'
+        ? { external_calls: ['notebooklm_cli', 'llm_api'], llm_api: true, notebooklm_skill_mutation: false }
+        : { external_calls: ['notebooklm_cli'], llm_api: false, notebooklm_skill_mutation: false };
+    }
+
+    function setProfile(profile) {
+      state.config.agent_runtime.runtime_profile = profile;
+      state.config.agent_runtime.capability_policy = policyFor(profile);
+      if (profile === 'notebooklm_only') {
+        for (const agent of state.schema.agents) {
+          state.config.agent_runtime.agents[agent].driver = 'codex';
+        }
+      }
+    }
+
+    function isApiSupported(agent) {
+      return (state.schema.api_driver_supported_agents || []).includes(agent);
     }
 
     async function loadConfig() {
@@ -720,11 +768,7 @@
 
     function setRuntimePreset(mode) {
       ensureRuntime();
-      state.config.agent_runtime.mode = 'local';
-      state.config.agent_runtime.default_driver = 'local';
-      for (const agent of state.schema.agents) {
-        state.config.agent_runtime.agents[agent].driver = 'local';
-      }
+      setProfile(mode === 'api_assisted' ? 'api_assisted' : 'notebooklm_only');
       render();
     }
 
@@ -742,21 +786,49 @@
 
     function renderStatus() {
       const runtime = state.config.agent_runtime;
-      $('runtimeMode').textContent = runtime.mode === 'local' ? 'Local' : 'Invalid';
-      $('apiAgentCount').textContent = '0';
+      $('runtimeMode').textContent = runtime.runtime_profile === 'api_assisted' ? 'API Assisted' : 'NotebookLM Only';
+      $('apiAgentCount').textContent = String(countApiAgents());
       $('validationStatus').textContent = state.validation.length ? 'Issues' : 'PASS';
-      $('envStatus').textContent = 'NotebookLM CLI';
+      $('envStatus').textContent = runtime.runtime_profile === 'api_assisted' ? 'NotebookLM + LLM API' : 'NotebookLM CLI';
     }
 
     function renderModeButtons() {
-      $('codexMode').classList.add('active');
-      $('apiMode').classList.remove('active');
-      $('apiMode').disabled = true;
+      const profile = state.config.agent_runtime.runtime_profile;
+      $('codexMode').classList.toggle('active', profile !== 'api_assisted');
+      $('apiMode').classList.toggle('active', profile === 'api_assisted');
+      $('apiMode').disabled = false;
     }
 
     function renderProviders() {
       const grid = $('providerGrid');
+      const runtime = state.config.agent_runtime;
       const policy = state.config.agent_runtime.capability_policy || {};
+      const providerBlocks = Object.entries(runtime.api_providers || {}).map(([name, provider]) => {
+        const env = state.env?.[name] || {};
+        const present = env.present;
+        return `
+          <div class="provider-block">
+            <div class="provider-title">
+              <strong>${name}</strong>
+              <span class="pill ${present ? 'ok' : 'warn'}">${present ? 'env ready' : 'env missing'}</span>
+            </div>
+            <div class="form-grid">
+              <div class="field wide">
+                <label>Base URL</label>
+                <input data-provider="${name}" data-provider-field="base_url" value="${escapeAttr(provider.base_url || '')}">
+              </div>
+              <div class="field">
+                <label>API Key Env</label>
+                <input data-provider="${name}" data-provider-field="api_key_env" value="${escapeAttr(provider.api_key_env || '')}">
+              </div>
+              <div class="field">
+                <label>Default Model</label>
+                <input data-provider="${name}" data-provider-field="default_model" value="${escapeAttr(provider.default_model || '')}" placeholder="例如 gpt-4.1 或 claude-sonnet-4-5">
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
       grid.innerHTML = `
         <div class="provider-block">
           <div class="provider-title">
@@ -765,7 +837,7 @@
           </div>
           <div class="empty">
             外部知识访问只能通过 <code>NotebookLMAdapter</code> 调用 <code>notebooklm</code> CLI。
-            LLM API、浏览器检索、Web 搜索和 notebooklm skill 修改均不属于当前运行边界。
+            API 写作 agent 只能读取本轮材料包和矩阵，不能直接访问知识库。
           </div>
         </div>
         <div class="provider-block">
@@ -779,7 +851,15 @@
             notebooklm_skill_mutation: ${policy.notebooklm_skill_mutation === false ? 'false' : 'invalid'}
           </div>
         </div>
+        ${providerBlocks}
       `;
+      grid.querySelectorAll('[data-provider-field]').forEach((input) => {
+        input.addEventListener('input', () => {
+          const provider = input.dataset.provider;
+          const field = input.dataset.providerField;
+          state.config.agent_runtime.api_providers[provider][field] = input.value;
+        });
+      });
     }
 
     function renderAgents() {
@@ -788,21 +868,24 @@
       for (const agent of state.schema.agents) {
         const config = state.config.agent_runtime.agents[agent];
         const isGateway = agent === 'NotebookLMAdapter';
+        const apiSupported = isApiSupported(agent);
+        const driver = config.driver || 'codex';
         const tr = document.createElement('tr');
         tr.className = agent === state.selectedAgent ? 'selected' : '';
         tr.innerHTML = `
           <td data-label="Agent"><button class="agent-name" type="button" data-agent="${agent}">${agent}</button></td>
           <td data-label="Driver">
             <select data-agent-driver="${agent}">
-              <option value="local">Codex/local</option>
+              <option value="codex">Codex</option>
+              ${apiSupported ? '<option value="api">API</option>' : ''}
             </select>
           </td>
-          <td data-label="Boundary">${isGateway ? 'NotebookLM CLI gateway' : 'No external calls'}</td>
-          <td data-label="Status"><span class="pill ${isGateway ? 'ok' : 'warn'}">${isGateway ? 'allowed CLI' : 'local only'}</span></td>
+          <td data-label="Boundary">${isGateway ? 'NotebookLM CLI gateway' : apiSupported ? 'Writes from run artifacts' : 'Codex/local gate'}</td>
+          <td data-label="Status"><span class="pill ${driver === 'api' ? 'ok' : isGateway ? 'ok' : 'warn'}">${driver === 'api' ? 'api writer' : isGateway ? 'allowed CLI' : 'codex'}</span></td>
         `;
         body.appendChild(tr);
-        tr.querySelector(`[data-agent-driver="${agent}"]`).value = config.driver || 'local';
-        tr.querySelector(`[data-agent-driver="${agent}"]`).disabled = true;
+        tr.querySelector(`[data-agent-driver="${agent}"]`).value = config.driver || 'codex';
+        tr.querySelector(`[data-agent-driver="${agent}"]`).disabled = isGateway || !apiSupported;
       }
       body.querySelectorAll('[data-agent]').forEach((button) => {
         button.addEventListener('click', () => {
@@ -814,8 +897,10 @@
       body.querySelectorAll('[data-agent-driver]').forEach((select) => {
         select.addEventListener('change', () => {
           const agent = select.dataset.agentDriver;
-          state.config.agent_runtime.agents[agent].driver = 'local';
-          state.config.agent_runtime.mode = 'local';
+          state.config.agent_runtime.agents[agent].driver = select.value;
+          if (select.value === 'api') {
+            setProfile('api_assisted');
+          }
           render();
         });
       });
@@ -825,28 +910,60 @@
       const agent = state.selectedAgent;
       const config = state.config.agent_runtime.agents[agent];
       const isGateway = agent === 'NotebookLMAdapter';
+      const apiSupported = isApiSupported(agent);
       $('detailTitle').textContent = agent;
-      $('detailSubtitle').textContent = isGateway ? '唯一允许外部调用的 NotebookLM CLI 网关' : 'local agent，不允许外部调用';
+      $('detailSubtitle').textContent = isGateway ? '唯一允许访问知识库的 NotebookLM CLI 网关' : apiSupported ? '可在 Codex/API 间切换，但只能读取本轮材料' : 'Codex 本地审查或结构化处理 agent';
       $('agentDetail').innerHTML = `
         <div class="form-grid">
           <div class="field">
             <label>Driver</label>
             <select id="detail-driver">
-              <option value="local">Codex/local</option>
+              <option value="codex">Codex</option>
+              ${apiSupported ? '<option value="api">API</option>' : ''}
             </select>
+          </div>
+          <div class="field">
+            <label>Provider</label>
+            <select id="detail-provider" ${apiSupported ? '' : 'disabled'}>
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Model</label>
+            <input id="detail-model" value="${escapeAttr(config.model || '')}" ${apiSupported ? '' : 'disabled'}>
+          </div>
+          <div class="field">
+            <label>Max Tokens</label>
+            <input id="detail-max-tokens" type="number" min="256" step="128" value="${escapeAttr(config.max_tokens || 1800)}" ${apiSupported ? '' : 'disabled'}>
           </div>
           <div class="field wide">
             <label>Boundary</label>
-            <input value="${isGateway ? 'NotebookLM CLI commands: auth check, source list, ask' : 'No external calls; reads run artifacts only'}" disabled>
+            <input value="${isGateway ? 'NotebookLM CLI commands: auth check, source list, ask' : apiSupported ? 'API receives only run artifacts prepared by Codex; no direct NotebookLM/Web access' : 'Local deterministic processing or review gate'}" disabled>
           </div>
         </div>
       `;
-      $('detail-driver').value = config.driver || 'local';
-      $('detail-driver').disabled = true;
+      $('detail-driver').value = config.driver || 'codex';
+      $('detail-driver').disabled = isGateway || !apiSupported;
+      $('detail-provider').value = config.provider || 'openai';
       $('detail-driver').addEventListener('change', (event) => {
-        config.driver = 'local';
-        state.config.agent_runtime.mode = 'local';
+        config.driver = event.target.value;
+        if (config.driver === 'api') {
+          setProfile('api_assisted');
+        }
         render();
+      });
+      $('detail-provider').addEventListener('change', (event) => {
+        config.provider = event.target.value;
+        const providerConfig = state.config.agent_runtime.api_providers[config.provider] || {};
+        config.model ||= providerConfig.default_model || '';
+        render();
+      });
+      $('detail-model').addEventListener('input', (event) => {
+        config.model = event.target.value;
+      });
+      $('detail-max-tokens').addEventListener('input', (event) => {
+        config.max_tokens = Number(event.target.value || 1800);
       });
     }
 
@@ -854,7 +971,7 @@
       const list = $('validationList');
       list.innerHTML = '';
       if (!state.validation.length) {
-        list.innerHTML = '<div class="empty">当前配置可保存。外部能力边界为 NotebookLM CLI only。</div>';
+        list.innerHTML = '<div class="empty">当前配置可保存。知识库访问固定为 NotebookLM CLI；写作 API 由 profile 和 agent driver 控制。</div>';
         return;
       }
       for (const issue of state.validation) {
@@ -866,7 +983,11 @@
     }
 
     function hasApiAgents() {
-      return false;
+      return countApiAgents() > 0;
+    }
+
+    function countApiAgents() {
+      return Object.values(state.config.agent_runtime.agents || {}).filter((config) => config.driver === 'api').length;
     }
 
     function escapeAttr(value) {
@@ -886,8 +1007,8 @@
       state.target = event.target.value;
       loadConfig();
     });
-    $('codexMode').addEventListener('click', () => setRuntimePreset('local'));
-    $('apiMode').addEventListener('click', () => setRuntimePreset('local'));
+    $('codexMode').addEventListener('click', () => setRuntimePreset('notebooklm_only'));
+    $('apiMode').addEventListener('click', () => setRuntimePreset('api_assisted'));
     $('reloadButton').addEventListener('click', loadConfig);
     $('validateButton').addEventListener('click', validateConfig);
     $('saveButton').addEventListener('click', saveConfig);

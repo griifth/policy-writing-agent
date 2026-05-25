@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 
@@ -47,6 +48,39 @@ def compose_section(
     lines.append(f"- 功能：{contract.get('function', '')}")
     lines.append(f"- 必答问题：{'；'.join(contract.get('must_answer', []))}")
     return "\n".join(lines) + "\n"
+
+
+def build_section_prompt(
+    section_id: str,
+    contract: dict[str, Any],
+    materials: list[dict[str, Any]],
+    claims: list[dict[str, Any]],
+    matrices: dict[str, Any],
+) -> str:
+    payload = {
+        "section_id": section_id,
+        "contract": contract,
+        "material_packages": materials,
+        "claims": claims,
+        "matrices": {
+            "hotspot_theme_matrix": matrices.get("hotspot_theme_matrix", []),
+            "comparison_matrix": matrices.get("comparison_matrix", []),
+            "impact_table": matrices.get("impact_table", []),
+            "insight_table": matrices.get("insight_table", []),
+        },
+    }
+    return "\n".join(
+        [
+            "你是 SectionComposerAgent，负责生成政策研究报告的一个章节。",
+            "边界：只能使用下方 JSON 中的材料包、矩阵、claim 和章节契约，不得新增外部事实。",
+            "如果材料不足，必须显式写出 MATERIAL_NEEDED，不要用常识补齐。",
+            "输出：中文 Markdown，第一行使用一级标题；最后保留“本节契约检查”。",
+            "",
+            "```json",
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            "```",
+        ]
+    )
 
 
 def _compose_hotspot(materials: list[dict[str, Any]], claims: list[dict[str, Any]]) -> list[str]:

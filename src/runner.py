@@ -30,7 +30,7 @@ from review_gates import (
     review_retrieval_completeness,
     review_section_contracts,
 )
-from section_composer import compose_section
+from section_composer import build_section_prompt, compose_section
 from section_planner import build_report_plan, build_section_plan
 
 
@@ -71,7 +71,7 @@ def run_workflow(task_config_path: str, run_id: str | None = None) -> dict[str, 
         "preflight",
         "PASS",
         "Load dimension and section contracts.",
-        {"config": str(config_path), "agent_runtime_mode": agent_runtime.mode},
+        {"config": str(config_path), "agent_runtime_profile": agent_runtime.profile},
     )
     dimensions = load_yaml(project_dir / "config" / "dimension_registry.yaml")
     section_contracts = load_yaml(project_dir / "config" / "section_contracts.yaml")
@@ -207,7 +207,19 @@ def run_workflow(task_config_path: str, run_id: str | None = None) -> dict[str, 
                 "started_at": utc_timestamp(),
             },
         )
-        draft = compose_section(section_id, section_data["contract"], material_packages, claims, matrices)
+        if agent_runtime.driver_for("SectionComposerAgent") == "api":
+            section_prompt = build_section_prompt(section_id, section_data["contract"], material_packages, claims, matrices)
+            write_text(run_dir / "section_drafts" / f"{section_id}.prompt.md", section_prompt)
+            record_artifact_event(
+                run_dir,
+                "section_drafts",
+                "SectionComposerAgent",
+                run_dir / "section_drafts" / f"{section_id}.prompt.md",
+                f"API prompt for section draft {section_id}.",
+            )
+            draft = agent_runtime.complete_text("SectionComposerAgent", section_prompt)
+        else:
+            draft = compose_section(section_id, section_data["contract"], material_packages, claims, matrices)
         section_drafts[section_id] = draft
         write_text(output_path, draft)
         update_task_ledger(run_dir, task_id, {"status": "PASS", "finished_at": utc_timestamp()})
@@ -271,7 +283,7 @@ def run_workflow(task_config_path: str, run_id: str | None = None) -> dict[str, 
         "run_id": run_id,
         "run_dir": str(run_dir),
         "final_report": str(run_dir / "final_report.md"),
-        "agent_runtime_mode": agent_runtime.mode,
+        "agent_runtime_profile": agent_runtime.profile,
         "verdicts": {
             report["reviewer"]: report["verdict"]
             for report in review_reports

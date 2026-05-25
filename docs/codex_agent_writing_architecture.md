@@ -1,13 +1,15 @@
 # Codex 写作 Agent 架构说明
 
-本文说明当前 `policy-writing-agent` 如何由 Codex 作为主 agent，调度多个边界明确的子 agent，基于 NotebookLM 知识库完成一份政策任务或热点研判报告。
+本文说明当前 `policy-writing-agent` 如何由 Codex 作为主 agent，调度多个边界明确的子 agent，基于 NotebookLM 知识库完成一份政策任务或热点研判报告。当前架构把“知识库访问权”和“写作执行器”分开：知识库只走 NotebookLM CLI，章节写作可以按 profile 选择 Codex/local 或 API。
 
 ## 当前硬约束
 
-- 只能通过本项目配置的 `notebooklm` CLI 调用 NotebookLM。
+- 只能通过本项目配置的 `notebooklm` CLI 调用 NotebookLM 和知识库资料。
 - 不修改 `/Users/hujingkai/.agents/skills/notebooklm/SKILL.md`。
-- 不调用 OpenAI、Anthropic、浏览器检索、Web 搜索或 ARIS 外部 reviewer。
-- 所有写作、审查和编排 agent 都是 `local` driver。
+- 不调用浏览器检索、Web 搜索或 ARIS 外部 reviewer。
+- Codex 始终是主编排者；`NotebookLMAdapter` 不能切换为 API。
+- `notebooklm_only` 下所有写作 agent 都是 Codex/local。
+- `api_assisted` 下，已接线的写作 agent 可调用 OpenAI/Anthropic 兼容配置，但只能读取本轮材料包、矩阵、章节契约和 review artifact。
 - 缺材料时保留 `MATERIAL_NEEDED` 或 follow-up query，不编造材料。
 
 ## 总流程
@@ -32,6 +34,7 @@
 控制面
   runtime_console.html
   src/runtime_console_server.py
+  agent_runtime.runtime_profile
 
 编排面
   src/runner.py
@@ -92,7 +95,7 @@ run_summary.json
 | MaterialPackAgent | `material_pack_builder.py` | 将 QueryResult 整理成材料包，暴露缺口问题。 |
 | MatrixBuilderAgent | `matrix_builder.py` | 从材料包生成热点-主题、比较、影响、启发和 claim-material 矩阵。 |
 | SectionContractAgent | `section_planner.py` | 按章节契约生成报告计划和章节计划。 |
-| SectionComposerAgent | `section_composer.py` | 只基于材料包、矩阵和章节契约生成章节草稿。 |
+| SectionComposerAgent | `section_composer.py` | 只基于材料包、矩阵和章节契约生成章节草稿；可在 `api_assisted` 下切换到 API 写作。 |
 | PlanReviewerAgent | `review_gates.py` | 检查 QueryPlan 是否覆盖任务章节和可运行字段。 |
 | RetrievalCompletenessGate | `review_gates.py` | 检查 QueryJob 是否都有结果和必需字段。 |
 | MaterialPackAudit | `review_gates.py` | 检查材料包 schema 与缺口。 |
@@ -111,17 +114,47 @@ run_summary.json
 主 agent 不直接替子 agent 混写全部内容。它负责：
 
 1. 读取 `config/report_task*.yaml`。
-2. 校验 `agent_runtime.capability_policy`。
+2. 校验 `agent_runtime.runtime_profile`、`capability_policy`、provider 和 agent driver。
 3. 分派 QueryPlannerAgent 生成 `query_jobs.json`。
 4. 让 NotebookLMAdapter 通过 CLI 获取知识库回答。
 5. 让 MaterialPackAgent 和 MatrixBuilderAgent 将回答结构化。
 6. 让 SectionContractAgent 固化章节契约和报告计划。
-7. 让 SectionComposerAgent 生成章节草稿。
+7. 让 SectionComposerAgent 生成章节草稿；如果该 agent 配置为 API，Codex 只发送本轮材料和契约构成的 prompt。
 8. 让 ReviewAgentGroup 逐层审查。
 9. 根据 review verdict 决定是否继续、记录 warning、还是要求下一轮修改。
 10. 让 ReportAssembler 与 IntegrationAgent 输出最终报告和 manifest。
 
 主 agent 的关键职责是“规划、分派、审核、统筹、防漂移”，不是越过子 agent 边界直接把检索、材料、章节、审查混成一个不可追溯文本。
+
+## Runtime Profiles
+
+```yaml
+agent_runtime:
+  runtime_profile: "notebooklm_only"
+  default_driver: "codex"
+  capability_policy:
+    external_calls: ["notebooklm_cli"]
+    llm_api: false
+    notebooklm_skill_mutation: false
+```
+
+`notebooklm_only` 是自动化优化循环的默认安全模式。它允许保留 provider 模板配置，但任何 agent 选择 `driver: api` 都会被 preflight 拒绝。
+
+```yaml
+agent_runtime:
+  runtime_profile: "api_assisted"
+  capability_policy:
+    external_calls: ["notebooklm_cli", "llm_api"]
+    llm_api: true
+    notebooklm_skill_mutation: false
+  agents:
+    SectionComposerAgent:
+      driver: "api"
+      provider: "openai"
+      model: "<model-name>"
+```
+
+`api_assisted` 只改变写作执行器，不改变知识库边界。API agent 收到的是 Codex 组装的材料包、矩阵、claim 和章节契约；它不能直接调用 NotebookLM、浏览器、Web 搜索或本地 skill。
 
 ## Review Verdict
 

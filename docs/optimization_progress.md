@@ -1,5 +1,88 @@
 # Optimization Progress
 
+## 2026-05-25 Round 2: Runtime Profile Split For API-Assisted Writing
+
+### Main-Agent Decision
+
+The earlier boundary was too broad: it treated "only NotebookLM CLI" as if the whole writing workflow could never use an LLM API. The corrected boundary is:
+
+- Knowledge-base access stays NotebookLM CLI only.
+- Codex remains the main orchestrator.
+- Writing executors may be `codex` or `api` only when `runtime_profile: api_assisted` explicitly enables `llm_api`.
+- API writing agents receive only Codex-prepared run artifacts and cannot access NotebookLM, browse, search, or add external facts.
+
+This preserves the anti-drift goal while allowing configurable writing agents.
+
+### Files Changed
+
+- `src/agent_runtime.py`
+- `src/section_composer.py`
+- `src/runner.py`
+- `src/runtime_console_server.py`
+- `runtime_console.html`
+- `config/report_task.yaml`
+- `config/report_task.real.yaml`
+- `src/progress.py`
+- `agent.md`
+- `docs/codex_agent_writing_architecture.md`
+- `docs/optimization_guardrails.md`
+- `docs/optimization_progress.md`
+
+### Validation
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile src/*.py
+PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY'
+from io_utils import load_yaml
+from agent_runtime import build_agent_runtime
+for path in ['config/report_task.yaml','config/report_task.real.yaml']:
+    cfg = load_yaml(path)
+    print(path, build_agent_runtime(cfg.get('agent_runtime', {})).validate())
+PY
+PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 OPENAI_API_KEY=dummy python3 - <<'PY'
+from copy import deepcopy
+from io_utils import load_yaml
+from agent_runtime import build_agent_runtime
+cfg = load_yaml('config/report_task.yaml')['agent_runtime']
+bad = deepcopy(cfg)
+bad['agents']['SectionComposerAgent']['driver'] = 'api'
+print('notebooklm_only_api_driver:', build_agent_runtime(bad).validate())
+good = deepcopy(cfg)
+good['runtime_profile'] = 'api_assisted'
+good['capability_policy'] = {'external_calls': ['notebooklm_cli', 'llm_api'], 'llm_api': True, 'notebooklm_skill_mutation': False}
+good['agents']['SectionComposerAgent']['driver'] = 'api'
+good['agents']['SectionComposerAgent']['provider'] = 'openai'
+good['agents']['SectionComposerAgent']['model'] = 'test-model'
+print('api_assisted_api_driver:', build_agent_runtime(good).validate())
+bad_calls = deepcopy(good)
+bad_calls['capability_policy']['external_calls'] = ['notebooklm_cli', 'web_search']
+print('bad_external_calls:', build_agent_runtime(bad_calls).validate())
+PY
+PYTHONDONTWRITEBYTECODE=1 python3 src/runner.py --task config/report_task.yaml --run-id api_profile_smoke_final
+python3 src/runtime_console_server.py --host 127.0.0.1 --port 8790
+```
+
+Result:
+
+- Python compile passed.
+- Default mock and real configs validate with no runtime issues.
+- `notebooklm_only` rejects an API-driven `SectionComposerAgent`.
+- `api_assisted` accepts an API-driven `SectionComposerAgent` when provider env and model are present.
+- Unsupported external calls such as `web_search` are rejected.
+- Mock workflow completed with `agent_runtime_profile: notebooklm_only`.
+- Runtime console shows both profiles, editable OpenAI/Anthropic provider metadata, and `SectionComposerAgent` Codex/API routing.
+- Runtime console validation reports missing model and missing `OPENAI_API_KEY` when `SectionComposerAgent` is switched to API without complete provider setup.
+
+### Known Warnings
+
+- API execution is currently wired only for `SectionComposerAgent`; review gates remain local deterministic guards.
+- The workflow did not perform a live OpenAI/Anthropic completion because no real API key/model was configured in the project defaults.
+- Existing report-quality warnings remain: source refs are not yet propagated through materials, section output shapes are still partly implicit, and upstream warnings keep final quality at `WARN`.
+
+### Next Round Target
+
+Wire schema-backed prompt loading and source refs before expanding API execution to additional writing/revision agents. API reviewers should not replace deterministic gates until they can return strict JSON with auditable input hashes.
+
 ## 2026-05-25 Round 1: Capability Boundary And Auditability
 
 ### Main-Agent Decision

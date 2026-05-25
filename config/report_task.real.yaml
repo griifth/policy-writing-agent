@@ -24,8 +24,25 @@ execution:
   overwrite_latest: true
 
 agent_runtime:
-  mode: "local"
-  default_driver: "local"
+  runtime_profile: "notebooklm_only"
+  default_driver: "codex"
+  knowledge_runtime:
+    provider: "notebooklm_cli"
+  orchestrator:
+    driver: "codex"
+  api_providers:
+    openai:
+      base_url: "https://api.openai.com/v1"
+      api_key_env: "OPENAI_API_KEY"
+      default_model: ""
+      temperature: 0.2
+      max_tokens: 1800
+    anthropic:
+      base_url: "https://api.anthropic.com/v1"
+      api_key_env: "ANTHROPIC_API_KEY"
+      default_model: ""
+      temperature: 0.2
+      max_tokens: 1800
   capability_policy:
     external_calls:
       - "notebooklm_cli"
@@ -33,37 +50,39 @@ agent_runtime:
     notebooklm_skill_mutation: false
   agents:
     QueryPlannerAgent:
-      driver: "local"
+      driver: "codex"
     MaterialPackAgent:
-      driver: "local"
+      driver: "codex"
     MatrixBuilderAgent:
-      driver: "local"
+      driver: "codex"
     SectionContractAgent:
-      driver: "local"
+      driver: "codex"
     SectionComposerAgent:
-      driver: "local"
+      driver: "codex"
+      provider: "openai"
+      model: ""
     PlanReviewerAgent:
-      driver: "local"
+      driver: "codex"
     RetrievalCompletenessGate:
-      driver: "local"
+      driver: "codex"
     MaterialPackAudit:
-      driver: "local"
+      driver: "codex"
     MaterialCoverageReviewerAgent:
-      driver: "local"
+      driver: "codex"
     EvidenceUseReviewerAgent:
-      driver: "local"
+      driver: "codex"
     SectionContractReviewerAgent:
-      driver: "local"
+      driver: "codex"
     ClaimAuditAgent:
-      driver: "local"
+      driver: "codex"
     ReportQualityReviewerAgent:
-      driver: "local"
+      driver: "codex"
     DriftReviewerAgent:
-      driver: "local"
+      driver: "codex"
     KillArgumentAgent:
-      driver: "local"
+      driver: "codex"
     ReportAssembler:
-      driver: "local"
+      driver: "codex"
 
 theme_taxonomy:
   - "AI 教育战略与国家规划"
