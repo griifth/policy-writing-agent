@@ -17,7 +17,11 @@ def review_plan(query_jobs: list[dict[str, Any]], required_sections: list[str]) 
     malformed = [
         job["id"]
         for job in query_jobs
-        if not job.get("prompt") or not job.get("expected_fields") or not job.get("notebook_id")
+        if not job.get("prompt")
+        or not job.get("expected_fields")
+        or not job.get("notebook_id")
+        or not job.get("schema_name")
+        or not job.get("output_contract")
     ]
     verdict = "PASS" if not missing and not malformed else "FAIL"
     return _result(
@@ -193,8 +197,13 @@ def review_evidence_use(query_results: list[dict[str, Any]], material_packages: 
             value = result.get(key)
             if isinstance(value, list):
                 citation_signals += len(value)
+        value = result.get("evidence_trace")
+        if isinstance(value, list):
+            citation_signals += len(value)
     package_refs = sum(len(package.get("source_refs", [])) for package in material_packages if isinstance(package.get("source_refs", []), list))
-    verdict = "PASS" if source_signals or citation_signals or package_refs else "WARN"
+    package_citations = sum(len(package.get("citation_refs", [])) for package in material_packages if isinstance(package.get("citation_refs", []), list))
+    package_trace = sum(len(package.get("evidence_trace", [])) for package in material_packages if isinstance(package.get("evidence_trace", []), list))
+    verdict = "PASS" if source_signals or citation_signals or package_refs or package_citations or package_trace else "WARN"
     return _result(
         reviewer="EvidenceUseReviewerAgent",
         verdict=verdict,
@@ -204,6 +213,8 @@ def review_evidence_use(query_results: list[dict[str, Any]], material_packages: 
             "query_result_source_signals": source_signals,
             "query_result_citation_signals": citation_signals,
             "material_package_source_refs": package_refs,
+            "material_package_citation_refs": package_citations,
+            "material_package_evidence_trace": package_trace,
         },
         issues=[
             {
@@ -277,6 +288,9 @@ def review_claim_scope(section_drafts: dict[str, str], claims: list[dict[str, An
     unused = [claim for claim in claims if claim.get("claim_id") and str(claim.get("claim_id")) not in used_claim_ids]
     for claim in unused:
         issues.append({"severity": "WARN", "claim_id": claim.get("claim_id"), "message": "Claim candidate was not used in drafts."})
+    for claim in claims:
+        if claim.get("claim_id") and not claim.get("source_refs") and not claim.get("citation_refs") and not claim.get("evidence_trace"):
+            issues.append({"severity": "WARN", "claim_id": claim.get("claim_id"), "message": "Claim candidate has no source/citation trace."})
     return _result(
         reviewer="ClaimAuditAgent",
         verdict="WARN" if issues else "PASS",

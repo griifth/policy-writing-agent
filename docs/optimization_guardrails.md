@@ -11,8 +11,14 @@ Build a NotebookLM-backed writing agent that can produce a policy task or hotspo
 - Only call NotebookLM and knowledge sources through the local `notebooklm` CLI.
 - Do not edit or rewrite `/Users/hujingkai/.agents/skills/notebooklm/SKILL.md`.
 - Do not add browser, web-search, or ARIS external reviewer calls to the report generation path.
+- Do not render NotebookLM `[n]` citation markers in reader-facing report text; keep citation/source trace in JSON artifacts instead.
 - OpenAI/Anthropic/DeepSeek-compatible APIs are allowed only as writing executors in `api_assisted`, and may consume only run artifacts prepared by Codex.
 - Keep the automation default in `notebooklm_only` unless the round explicitly tests API-assisted writing.
+- Keep NotebookLM Q&A serial by default (`max_concurrency: 1`) unless a round explicitly tests parallelism.
+- Source-specific deep dive is file-level: use `source_id/title`, not chapter-level citation validation.
+- Trace refs should be notebook-scoped: carry `notebook_id` with `source_refs`, `citation_refs`, and `evidence_trace` so identical citation numbers or titles in different notebooks remain distinguishable.
+- Source-specific deep dive breadth should default to all resolved source candidates from base retrieval/citation sweep; this does not mean all files in the NotebookLM notebook.
+- Citation sweep must ask for distinct `source_candidates`; parser should prefer embedded `citations.title` when present and use top-level `references` only as fallback, because real CLI references can collapse multiple title citations to one source id.
 - Do not broaden the project into a generic agent framework, LaTeX paper submission workflow, or ARIS clone.
 - Keep each subagent boundary explicit: planning, NotebookLM retrieval, material packaging, matrix building, section planning, section writing, review, assembly, integration.
 
@@ -38,8 +44,27 @@ Every optimization round must update `docs/optimization_progress.md` with:
 
 ## Current Priority Queue
 
-1. Load prompt files into QueryJobs and make prompts schema-backed.
-2. Build one material package per hotspot instead of one hardcoded package.
-3. Propagate NotebookLM source/citation refs into material packages and claim rows.
-4. Add one bounded follow-up retrieval loop for missing material fields.
-5. Make section drafts explicitly satisfy section contract output shapes.
+1. Done: load prompt files into QueryJobs and make prompts schema-backed.
+2. Done: propagate NotebookLM source/citation refs into material packages and claim rows.
+3. Done: add all-source citation sweep plus source-specific `notebooklm ask -s <source_id>` deep dive.
+4. Done: adapt source-specific deep dive into four writing lanes: hotspot rationale, core material, comparison, and impact.
+5. Done: make section drafts explicitly satisfy section contract output shapes.
+6. Done: run bounded real-mode validation for citation sweep -> source candidate -> four source lanes; fix `references.citation_number` parsing.
+7. Done: set source deep dive breadth to all resolved source candidates, with `0` reserved for disabling the loop.
+8. Build one material package per hotspot only when the report target is a top-k hotspot inventory or comparison report.
+9. Add one bounded follow-up retrieval loop for missing material fields.
+
+## Current Residual Warnings
+
+- Evidence refs: first-pass source/citation propagation is wired; bounded real-mode smoke exposed and fixed `references.citation_number` parsing.
+- Citation display: mock workflow now strips visible `[n]` markers from final report while preserving trace artifacts.
+- Source-specific deep dive: bounded real-mode smoke validated one source candidate and all four `-s <source_id>` writing lanes; the education-evaluation real query run also completed one source with four lanes.
+- Source breadth: current mock and real configs use `source_deep_dive_limit: "all"`; source-lane calls scale as resolved source candidates times four lanes.
+- Real rerun: `education_evaluation_ai_real_rerun_20260527` verified 3 source candidates and 12 source-lane jobs in live real mode.
+- Lane materials: material packages preserve lane buckets, but current report drafting does not yet explicitly consume every bucket in a section-specific way.
+- Section contracts: generated drafts now render configured output-shape items as visible headings in mock mode.
+- Source labels: real CLI `references` may omit title; source ID is enough for `-s`, and refs now carry `notebook_id`, but report-facing title enrichment should keep using `notebooklm_sources.json`.
+- Section wording: real report drafts can still trigger `ClaimAuditAgent` when medium-support claims appear near strong policy language.
+- Markdown rendering: section drafts can render list-valued NotebookLM fields awkwardly; normalize list display before polished output.
+- Appendix source refs: package-level source refs can make claim source labels too verbose; keep trace in artifacts but summarize labels in reader-facing appendices.
+- Report quality: mock-mode report quality is green after section-contract explicitness; the education-evaluation real run completed with WARN due to claim wording.

@@ -24,6 +24,22 @@ theme_mapping:
     - caution_note
     - missing_information
 
+deep_dive:
+  required_fields:
+    - policy_points
+    - policy_tools
+    - actors
+    - mechanisms
+    - risks
+    - claim_candidates
+    - missing_questions
+  flexible_fields:
+    - hotspot_name
+    - policy_problem
+    - policy_goal
+    - caution_note
+    - missing_information
+
 comparison:
   required_fields:
     - policy_goal
@@ -65,6 +81,94 @@ insight:
     - caution_note
     - missing_information
 
+source_deep_dive:
+  required_fields:
+    - policy_points
+    - policy_tools
+    - actors
+    - mechanisms
+    - risks
+    - claim_candidates
+    - missing_questions
+    - source_specific_findings
+  flexible_fields:
+    - source_refs
+    - citation_refs
+    - evidence_trace
+    - caution_note
+    - missing_information
+
+hotspot_rationale_deep_dive:
+  required_fields:
+    - hotspot_signal
+    - repeated_signal
+    - policy_problem
+    - rise_reason
+    - actors
+    - support_level
+    - caution
+    - answer
+  flexible_fields:
+    - source_refs
+    - citation_refs
+    - evidence_trace
+    - missing_information
+
+core_material_deep_dive:
+  required_fields:
+    - policy_points
+    - policy_tools
+    - actors
+    - target_groups
+    - mechanisms
+    - risks
+    - claim_candidates
+    - missing_questions
+    - source_specific_findings
+  flexible_fields:
+    - source_refs
+    - citation_refs
+    - evidence_trace
+    - caution_note
+    - missing_information
+
+comparison_deep_dive:
+  required_fields:
+    - policy_goal
+    - target_group
+    - governance_actor
+    - policy_tool
+    - implementation_mechanism
+    - evaluation_mechanism
+    - risk_governance
+    - frontier_feature
+    - comparable_unit
+  flexible_fields:
+    - source_refs
+    - citation_refs
+    - evidence_trace
+    - caution_note
+    - missing_information
+
+impact_deep_dive:
+  required_fields:
+    - explicit_impacts
+    - cautious_inferences
+    - governance_impact
+    - school_practice_impact
+    - teacher_development_impact
+    - student_learning_impact
+    - education_evaluation_impact
+    - platform_resource_impact
+    - ethics_safety_impact
+    - uncertainty
+  flexible_fields:
+    - source_refs
+    - citation_refs
+    - evidence_trace
+    - caution_note
+    - missing_information
+
 material_package:
   required_fields:
     - package_id
@@ -82,3 +186,13 @@ material_package:
     - claim_candidates
     - caution_notes
     - missing_questions
+  flexible_fields:
+    - source_refs
+    - citation_refs
+    - evidence_trace
+    - deep_dive_materials
+    - hotspot_rationale_items
+    - core_material_items
+    - comparison_deep_dive_items
+    - impact_deep_dive_items
+    - raw_fields

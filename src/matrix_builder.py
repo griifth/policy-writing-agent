@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from text_cleaning import strip_citation_markers
+
 
 def build_hotspot_theme_matrix(material_packages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
@@ -59,12 +61,15 @@ def build_policy_claim_material_matrix(material_packages: list[dict[str, Any]]) 
             rows.append(
                 {
                     "claim_id": f"{package['package_id']}_claim_{index}",
-                    "claim_text": claim.get("claim"),
+                    "claim_text": strip_citation_markers(claim.get("claim")),
                     "claim_type": "hotspot",
                     "material_package_ids": [package["package_id"]],
                     "support_level": claim.get("support_level", "weak"),
                     "allowed_sections": claim.get("allowed_sections", []),
-                    "caution_note": claim.get("caution", ""),
+                    "caution_note": strip_citation_markers(claim.get("caution", "")),
+                    "source_refs": claim.get("source_refs", package.get("source_refs", [])),
+                    "citation_refs": claim.get("citation_refs", package.get("citation_refs", [])),
+                    "evidence_trace": claim.get("evidence_trace", package.get("evidence_trace", [])),
                     "missing_fields": [],
                 }
             )

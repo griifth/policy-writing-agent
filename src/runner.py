@@ -32,6 +32,12 @@ from review_gates import (
 )
 from section_composer import build_section_prompt, compose_section
 from section_planner import build_report_plan, build_section_plan
+from source_deep_dive import (
+    DEFAULT_SOURCE_DEEP_DIVE_LANES,
+    build_citation_sweep_job,
+    build_source_deep_dive_candidates,
+    build_source_deep_dive_jobs,
+)
 
 
 def run_workflow(task_config_path: str, run_id: str | None = None) -> dict[str, Any]:
@@ -130,10 +136,109 @@ def run_workflow(task_config_path: str, run_id: str | None = None) -> dict[str, 
         job = next(job for job in query_jobs if job["id"] == result["job_id"])
         write_json(job["output_target"], result)
         record_artifact_event(run_dir, "retrieval", "NotebookLMAdapter", job["output_target"], f"Query result for {job['id']}.", result.get("verdict", result.get("status", "PASS")))
-    retrieval_review = review_retrieval_completeness(query_jobs, query_results)
+
+    source_deep_dive_limit = _configured_source_deep_dive_limit(execution)
+    source_deep_dive_lanes = _configured_source_deep_dive_lanes(execution)
+    citation_sweep_jobs = []
+    source_deep_dive_candidates = build_source_deep_dive_candidates(query_results, sources, source_deep_dive_limit)
+    if not source_deep_dive_candidates and _source_deep_dive_enabled(source_deep_dive_limit):
+        citation_sweep_job = build_citation_sweep_job(task_spec, run_dir, len(query_jobs) + 1)
+        citation_sweep_jobs.append(citation_sweep_job)
+        write_json(run_dir / "citation_sweep_jobs.json", citation_sweep_jobs)
+        record_artifact_event(run_dir, "citation_sweep", "SourceDeepDivePlannerAgent", run_dir / "citation_sweep_jobs.json", "Citation sweep NotebookLM query jobs.")
+        update_task_ledger(
+            run_dir,
+            citation_sweep_job["id"],
+            {
+                "owner_agent": "NotebookLMAdapter",
+                "stage": "citation_sweep",
+                "status": "PENDING",
+                "inputs": ["notebooklm_sources.json"],
+                "outputs": [citation_sweep_job.get("output_target")],
+                "notebook_id": citation_sweep_job.get("notebook_id"),
+                "query_type": citation_sweep_job.get("query_type"),
+            },
+        )
+        _mark_phase(
+            run_dir,
+            "citation_sweep",
+            "RUNNING",
+            "Execute citation sweep before source-specific deep dive.",
+            {"job_count": 1},
+            active_tasks=[citation_sweep_job["id"]],
+        )
+        citation_sweep_results = _execute_query_jobs(adapter, citation_sweep_jobs, max_concurrency, run_dir)
+        for result in citation_sweep_results:
+            write_json(citation_sweep_job["output_target"], result)
+            record_artifact_event(run_dir, "citation_sweep", "NotebookLMAdapter", citation_sweep_job["output_target"], f"Citation sweep result for {citation_sweep_job['id']}.", result.get("verdict", result.get("status", "PASS")))
+        query_results.extend(citation_sweep_results)
+        source_deep_dive_candidates = build_source_deep_dive_candidates(query_results, sources, source_deep_dive_limit)
+        _mark_phase(run_dir, "citation_sweep", "PASS", "Plan source-specific deep dive jobs.", {"candidate_count": len(source_deep_dive_candidates)})
+    else:
+        write_json(run_dir / "citation_sweep_jobs.json", citation_sweep_jobs)
+        record_artifact_event(run_dir, "citation_sweep", "SourceDeepDivePlannerAgent", run_dir / "citation_sweep_jobs.json", "Citation sweep skipped because first-stage citations were sufficient.")
+    source_deep_dive_jobs = build_source_deep_dive_jobs(
+        source_deep_dive_candidates,
+        task_spec,
+        run_dir,
+        len(query_jobs) + len(citation_sweep_jobs),
+        source_deep_dive_lanes,
+    )
+    write_json(run_dir / "source_deep_dive_candidates.json", source_deep_dive_candidates)
+    record_artifact_event(run_dir, "source_deep_dive", "SourceDeepDivePlannerAgent", run_dir / "source_deep_dive_candidates.json", "Source-specific deep dive candidates.")
+    write_json(run_dir / "source_deep_dive_jobs.json", source_deep_dive_jobs)
+    record_artifact_event(run_dir, "source_deep_dive", "SourceDeepDivePlannerAgent", run_dir / "source_deep_dive_jobs.json", "Source-specific NotebookLM query jobs.")
+    if source_deep_dive_jobs:
+        for job in source_deep_dive_jobs:
+            update_task_ledger(
+                run_dir,
+                job["id"],
+                {
+                    "owner_agent": "NotebookLMAdapter",
+                    "stage": "source_deep_dive",
+                    "status": "PENDING",
+                    "inputs": [job.get("seed_trace_id"), job.get("source_title")],
+                    "outputs": [job.get("output_target")],
+                    "notebook_id": job.get("notebook_id"),
+                    "query_type": job.get("query_type"),
+                    "deep_dive_lane": job.get("deep_dive_lane"),
+                    "source_ids": job.get("source_ids", []),
+                },
+            )
+        _mark_phase(
+            run_dir,
+            "source_deep_dive",
+            "RUNNING",
+            "Execute bounded source-specific NotebookLM query jobs.",
+            {"job_count": len(source_deep_dive_jobs), "limit": source_deep_dive_limit, "lanes": source_deep_dive_lanes},
+            active_tasks=[job["id"] for job in source_deep_dive_jobs],
+        )
+        source_deep_dive_results = _execute_query_jobs(adapter, source_deep_dive_jobs, max_concurrency, run_dir)
+        for result in source_deep_dive_results:
+            job = next(job for job in source_deep_dive_jobs if job["id"] == result["job_id"])
+            write_json(job["output_target"], result)
+            record_artifact_event(run_dir, "source_deep_dive", "NotebookLMAdapter", job["output_target"], f"Source deep dive result for {job['id']}.", result.get("verdict", result.get("status", "PASS")))
+        query_results.extend(source_deep_dive_results)
+        _mark_phase(run_dir, "source_deep_dive", "PASS", "Review complete retrieval set.", {"result_count": len(query_results)})
+    else:
+        _mark_phase(
+            run_dir,
+            "source_deep_dive",
+            "NOT_APPLICABLE",
+            "No resolvable cited sources found for source-specific deep dive.",
+            {"candidate_count": len(source_deep_dive_candidates), "limit": source_deep_dive_limit},
+        )
+
+    all_query_jobs = [*query_jobs, *citation_sweep_jobs, *source_deep_dive_jobs]
+    retrieval_review = review_retrieval_completeness(all_query_jobs, query_results)
     retrieval_review = attach_audited_hashes(
         retrieval_review,
-        ["query_jobs.json", *[Path(job["output_target"]).relative_to(run_dir) for job in query_jobs]],
+        [
+            "query_jobs.json",
+            "citation_sweep_jobs.json",
+            "source_deep_dive_jobs.json",
+            *[Path(job["output_target"]).relative_to(run_dir) for job in all_query_jobs],
+        ],
         run_dir,
     )
     write_json(run_dir / "review_reports" / "retrieval_completeness_review.json", retrieval_review)
@@ -297,6 +402,29 @@ def _configured_concurrency(execution: dict[str, Any]) -> int:
     except (TypeError, ValueError):
         return 1
     return max(1, configured)
+
+
+def _configured_source_deep_dive_limit(execution: dict[str, Any]) -> int | None:
+    raw = execution.get("source_deep_dive_limit", 3)
+    if isinstance(raw, str) and raw.strip().lower() in {"all", "unlimited", "none"}:
+        return None
+    try:
+        configured = int(raw)
+    except (TypeError, ValueError):
+        return 3
+    return max(0, configured)
+
+
+def _source_deep_dive_enabled(limit: int | None) -> bool:
+    return limit is None or limit > 0
+
+
+def _configured_source_deep_dive_lanes(execution: dict[str, Any]) -> list[str]:
+    configured = execution.get("source_deep_dive_lanes")
+    if not isinstance(configured, list):
+        return DEFAULT_SOURCE_DEEP_DIVE_LANES
+    lanes = [str(lane) for lane in configured if lane]
+    return lanes or DEFAULT_SOURCE_DEEP_DIVE_LANES
 
 
 def _execute_query_jobs(adapter: NotebookLMAdapter, query_jobs: list[dict[str, Any]], max_concurrency: int, run_dir: Path) -> list[dict[str, Any]]:

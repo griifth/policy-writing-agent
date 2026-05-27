@@ -19,7 +19,13 @@ task:
 execution:
   mode: "real"
   notebooklm_cli_path: "/Users/hujingkai/Desktop/notebookcli2report/notebooklm-py-main/.venv/bin/notebooklm"
-  max_concurrency: 2
+  max_concurrency: 1
+  source_deep_dive_limit: "all"
+  source_deep_dive_lanes:
+    - hotspot_rationale_deep_dive
+    - core_material_deep_dive
+    - comparison_deep_dive
+    - impact_deep_dive
   output_root: "runs"
   overwrite_latest: true
 
