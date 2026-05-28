@@ -69,14 +69,17 @@ def build_section_prompt(
     payload = {
         "section_id": section_id,
         "contract": contract,
-        "material_packages": materials,
-        "claims": claims,
-        "matrices": {
-            "hotspot_theme_matrix": matrices.get("hotspot_theme_matrix", []),
-            "comparison_matrix": matrices.get("comparison_matrix", []),
-            "impact_table": matrices.get("impact_table", []),
-            "insight_table": matrices.get("insight_table", []),
-        },
+        "material_packages": [_compact_material_package(package) for package in materials],
+        "claims": [_compact_claim(claim) for claim in claims[:12]],
+        "matrices": _compact_value(
+            {
+                "hotspot_theme_matrix": matrices.get("hotspot_theme_matrix", []),
+                "comparison_matrix": matrices.get("comparison_matrix", []),
+                "impact_table": matrices.get("impact_table", []),
+                "insight_table": matrices.get("insight_table", []),
+            },
+            max_depth=4,
+        ),
     }
     return "\n".join(
         [
@@ -90,6 +93,116 @@ def build_section_prompt(
             "```",
         ]
     )
+
+
+def _compact_material_package(package: dict[str, Any]) -> dict[str, Any]:
+    allowed_keys = [
+        "package_id",
+        "hotspot",
+        "main_theme",
+        "cross_themes",
+        "section_targets",
+        "policy_points",
+        "policy_tools",
+        "actors",
+        "target_groups",
+        "mechanisms",
+        "risks",
+        "impact_items",
+        "comparison_items",
+        "hotspot_rationale_items",
+        "core_material_items",
+        "claim_candidates",
+        "missing_questions",
+        "source_refs",
+    ]
+    compact = {key: package.get(key) for key in allowed_keys if package.get(key) not in (None, "", [], {})}
+    for key in [
+        "impact_items",
+        "comparison_items",
+        "hotspot_rationale_items",
+        "core_material_items",
+        "claim_candidates",
+    ]:
+        if isinstance(compact.get(key), list):
+            compact[key] = [_compact_material_item(item) for item in compact[key][:4] if isinstance(item, dict)]
+            if len(package.get(key, [])) > 4:
+                compact[key].append({"note": f"... truncated {len(package.get(key, [])) - 4} more items"})
+    if isinstance(compact.get("source_refs"), list):
+        compact["source_refs"] = [_compact_source_ref(item) for item in compact["source_refs"][:8] if isinstance(item, dict)]
+    return _compact_value(compact, max_depth=4, max_string=350, max_items=4)
+
+
+def _compact_material_item(item: dict[str, Any]) -> dict[str, Any]:
+    skip_keys = {
+        "answer",
+        "raw_answer",
+        "raw_response",
+        "raw_stdout",
+        "raw_stderr",
+        "structured_answer",
+        "parsed_fields",
+        "citations",
+        "citation_refs",
+        "evidence_trace",
+    }
+    compact: dict[str, Any] = {}
+    for key, value in item.items():
+        if key in skip_keys or value in (None, "", [], {}):
+            continue
+        compact[key] = value
+    return compact
+
+
+def _compact_claim(claim: dict[str, Any]) -> dict[str, Any]:
+    allowed_keys = [
+        "claim_id",
+        "claim_text",
+        "claim_type",
+        "material_package_ids",
+        "support_level",
+        "allowed_sections",
+        "caution_note",
+        "missing_fields",
+    ]
+    return {
+        key: _compact_value(claim.get(key), max_depth=2)
+        for key in allowed_keys
+        if claim.get(key) not in (None, "", [], {})
+    }
+
+
+def _compact_source_ref(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: item.get(key)
+        for key in ["notebook_id", "source_id", "title"]
+        if item.get(key) not in (None, "", [], {})
+    }
+
+
+def _compact_value(value: Any, *, max_depth: int, max_string: int = 700, max_items: int = 8) -> Any:
+    if max_depth <= 0:
+        return _compact_scalar(value, max_string=max_string)
+    if isinstance(value, dict):
+        compact: dict[str, Any] = {}
+        for key, item in value.items():
+            if item in (None, "", [], {}):
+                continue
+            compact[str(key)] = _compact_value(item, max_depth=max_depth - 1, max_string=max_string, max_items=max_items)
+        return compact
+    if isinstance(value, list):
+        items = [_compact_value(item, max_depth=max_depth - 1, max_string=max_string, max_items=max_items) for item in value[:max_items]]
+        if len(value) > max_items:
+            items.append(f"... truncated {len(value) - max_items} more items")
+        return items
+    return _compact_scalar(value, max_string=max_string)
+
+
+def _compact_scalar(value: Any, *, max_string: int) -> str:
+    text = strip_citation_markers(value)
+    if len(text) <= max_string:
+        return text
+    return text[: max_string - 20].rstrip() + " ...[truncated]"
 
 
 def _compose_hotspot(materials: list[dict[str, Any]], claims: list[dict[str, Any]]) -> list[str]:

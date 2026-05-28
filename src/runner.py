@@ -113,6 +113,7 @@ def run_workflow(task_config_path: str, run_id: str | None = None) -> dict[str, 
         mode=execution.get("mode", "mock"),
         cli_path=execution.get("notebooklm_cli_path"),
         command_log_path=run_dir / "notebooklm_command_log.jsonl",
+        ask_timeout_seconds=int(execution.get("notebooklm_ask_timeout_seconds", 180)),
     )
     auth_status = adapter.check_auth()
     write_json(run_dir / "notebooklm_auth.json", auth_status)

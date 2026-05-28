@@ -1107,3 +1107,77 @@ Implemented fixes:
 ### Next Round Target
 
 Implement schema-backed query prompts that actually load `prompts/*.md`, then build material packages per hotspot with `source_refs`, `support_level`, `caution_note`, and `missing_questions`.
+
+## 2026-05-27 DeepSeek Writing Run Attempt
+
+### Objective
+
+Rerun the education-evaluation report task for `教育评价在人工智能时代的转变` with NotebookLM as the only knowledge gateway and DeepSeek as the API-assisted section-writing executor.
+
+### Main-Agent Decision
+
+Added a separate API-assisted task config instead of mutating the existing NotebookLM-only real config. The new config keeps real-mode NotebookLM CLI retrieval, serial Q&A, all resolved source candidates for source deep dive, and the four source-lane prompts. Only `SectionComposerAgent` is switched to the `deepseek` API driver.
+
+### Files Changed
+
+- `config/report_task.education_evaluation.deepseek.yaml`
+- `src/agent_runtime.py`
+- `src/notebooklm_adapter.py`
+- `src/runner.py`
+- `src/section_composer.py`
+- `docs/optimization_progress.md`
+- `docs/optimization_guardrails.md`
+
+### Validation
+
+```bash
+env | rg 'DEEPSEEK|OPENAI|ANTHROPIC' || true
+PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY'
+from io_utils import load_yaml
+from agent_runtime import build_agent_runtime
+cfg = load_yaml('config/report_task.education_evaluation.deepseek.yaml')
+rt = build_agent_runtime(cfg['agent_runtime'])
+print(rt.validate())
+PY
+DEEPSEEK_API_KEY=dummy PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY'
+from io_utils import load_yaml
+from agent_runtime import build_agent_runtime
+cfg = load_yaml('config/report_task.education_evaluation.deepseek.yaml')
+rt = build_agent_runtime(cfg['agent_runtime'])
+print(rt.validate())
+PY
+PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile src/*.py
+PYTHONDONTWRITEBYTECODE=1 python3 src/runner.py --task config/report_task.education_evaluation.deepseek.yaml --run-id education_evaluation_ai_deepseek_20260527
+PYTHONDONTWRITEBYTECODE=1 python3 src/runner.py --task config/report_task.education_evaluation.deepseek.yaml --run-id education_evaluation_ai_deepseek_20260527_retry2
+rg '\[[0-9]+\]' runs/education_evaluation_ai_deepseek_20260527_retry2/final_report.md || true
+```
+
+Result:
+
+- The current process environment does not expose `DEEPSEEK_API_KEY`.
+- Runtime validation blocks the real DeepSeek run with `Missing environment variable for API provider: DEEPSEEK_API_KEY`.
+- With a dummy key present, runtime validation returns no issues, confirming the config shape and capability policy are valid.
+- Python compile validation passes.
+- After a real DeepSeek key was supplied for the process environment, runtime validation passed and the workflow started.
+- The run then blocked at `NotebookLMPreflightGate` before retrieval: NotebookLM storage/cookies exist, but token fetch failed with `CSRF token not found in HTML`, source count was `0`, and the run wrote `runs/education_evaluation_ai_deepseek_20260527/RUN_STATUS.md` with status `BLOCKED`.
+- After NotebookLM auth was refreshed, `education_evaluation_ai_deepseek_20260527_retry` passed NotebookLM preflight and reached retrieval, but the original 180-second NotebookLM `ask` timeout caused `03_deep_dive` to raise `TimeoutExpired`.
+- Added `execution.notebooklm_ask_timeout_seconds` and timeout handling so NotebookLM CLI timeouts become structured command results instead of Python process crashes.
+- `education_evaluation_ai_deepseek_20260527_retry` then reached DeepSeek section writing but failed on the first API call with `Connection reset by peer`; a minimal DeepSeek API smoke test with low `max_tokens` succeeded.
+- Added API POST retry behavior, reduced `SectionComposerAgent.max_tokens` to `8000`, and compacted the API section prompt inputs.
+- `education_evaluation_ai_deepseek_20260527_retry2` completed end-to-end and generated `runs/education_evaluation_ai_deepseek_20260527_retry2/final_report.md`.
+- DeepSeek wrote all five section drafts: hotspot, theme, comparison, impact, and insight.
+- NotebookLM preflight passed, source list loaded, 5 of 6 base query jobs passed, 1 base impact query returned ERROR, and 16 source-specific deep dive lane jobs completed for 4 selected sources.
+- Final report contains no visible NotebookLM `[n]` citation markers.
+- Final verdicts: `PlanReviewerAgent`, `NotebookLMPreflightGate`, `MaterialPackAudit`, `MaterialCoverageReviewerAgent`, `EvidenceUseReviewerAgent`, and `DriftReviewerAgent` passed; `RetrievalCompletenessGate` was `BLOCKED`; `SectionContractReviewerAgent`, `ClaimAuditAgent`, `ReportQualityReviewerAgent`, and `KillArgumentAgent` warned.
+
+### Known Warnings
+
+- DeepSeek API-assisted writing is now proven end-to-end, but the run remains non-green because one base NotebookLM query returned ERROR.
+- `RUN_STATUS.md` ends as `BLOCKED` because retrieval completeness is non-green, even though a full final report was assembled.
+- DeepSeek output improved synthesis quality compared with the local template writer, but section contract and claim-scope gates still warn on implicit/missing expectations and stronger-than-material wording.
+- API prompts are now compacted, but future work should make section-specific prompt payloads smaller by passing only the fields each section contract requires.
+- User constraint update: NotebookLM single `ask` calls should be capped at 240 seconds. Updated the DeepSeek task config from 600 seconds to 240 seconds; longer retrievals should be treated as structured retrieval errors rather than extended waits.
+
+### Next Round Target
+
+Add a bounded retry/follow-up path for failed base NotebookLM query jobs, starting with `05_impact`, before material-pack assembly. Then improve section-specific API prompt packing so each DeepSeek section receives only its required material slices.

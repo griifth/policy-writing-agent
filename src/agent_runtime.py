@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import dataclass
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -347,6 +348,7 @@ def _build_api_providers(raw_providers: Any) -> dict[str, dict[str, Any]]:
                 "default_model": raw.get("default_model", raw.get("model", "")),
                 "temperature": raw.get("temperature", 0.2),
                 "max_tokens": raw.get("max_tokens", 1800),
+                "timeout_seconds": raw.get("timeout_seconds", _default_timeout_seconds(name)),
             }
     for name in API_PROVIDERS:
         providers.setdefault(
@@ -357,6 +359,7 @@ def _build_api_providers(raw_providers: Any) -> dict[str, dict[str, Any]]:
                 "default_model": "",
                 "temperature": 0.2,
                 "max_tokens": 1800,
+                "timeout_seconds": _default_timeout_seconds(name),
             },
         )
     return providers
@@ -416,6 +419,12 @@ def _default_api_key_env(provider: str) -> str:
     return "OPENAI_API_KEY"
 
 
+def _default_timeout_seconds(provider: str) -> int:
+    if provider == "deepseek":
+        return int(os.environ.get("DEEPSEEK_TIMEOUT_SECONDS", "120"))
+    return 120
+
+
 def _complete_openai(provider: dict[str, Any], config: dict[str, Any], prompt: str) -> str:
     payload = {
         "model": config["model"],
@@ -436,6 +445,7 @@ def _complete_openai(provider: dict[str, Any], config: dict[str, Any], prompt: s
             "Authorization": f"Bearer {os.environ[str(provider['api_key_env'])]}",
             "Content-Type": "application/json",
         },
+        timeout_seconds=int(provider.get("timeout_seconds", 120)),
     )
     return str(data["choices"][0]["message"]["content"]).strip()
 
@@ -455,21 +465,30 @@ def _complete_anthropic(provider: dict[str, Any], config: dict[str, Any], prompt
             "anthropic-version": "2023-06-01",
             "Content-Type": "application/json",
         },
+        timeout_seconds=int(provider.get("timeout_seconds", 120)),
     )
     content = data.get("content", [])
     return "\n".join(str(part.get("text", "")) for part in content if isinstance(part, dict)).strip()
 
 
-def _post_json(url: str, payload: dict[str, Any], headers: dict[str, str]) -> dict[str, Any]:
+def _post_json(url: str, payload: dict[str, Any], headers: dict[str, str], *, timeout_seconds: int) -> dict[str, Any]:
     request = Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
-    try:
-        with urlopen(request, timeout=120) as response:  # noqa: S310 - user-configured API endpoint.
-            data = json.loads(response.read().decode("utf-8"))
-    except HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"API request failed with HTTP {exc.code}: {body}") from exc
-    except URLError as exc:
-        raise RuntimeError(f"API request failed: {exc.reason}") from exc
+    last_error: Exception | None = None
+    for attempt in range(1, 4):
+        try:
+            with urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310 - user-configured API endpoint.
+                data = json.loads(response.read().decode("utf-8"))
+            break
+        except HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"API request failed with HTTP {exc.code}: {body}") from exc
+        except URLError as exc:
+            last_error = exc
+            if attempt == 3:
+                raise RuntimeError(f"API request failed: {exc.reason}") from exc
+            time.sleep(2 * attempt)
+    else:
+        raise RuntimeError(f"API request failed: {last_error}") from last_error
     if not isinstance(data, dict):
         raise RuntimeError("API response was not a JSON object.")
     return data

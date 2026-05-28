@@ -14,7 +14,9 @@ Build a NotebookLM-backed writing agent that can produce a policy task or hotspo
 - Do not render NotebookLM `[n]` citation markers in reader-facing report text; keep citation/source trace in JSON artifacts instead.
 - OpenAI/Anthropic/DeepSeek-compatible APIs are allowed only as writing executors in `api_assisted`, and may consume only run artifacts prepared by Codex.
 - Keep the automation default in `notebooklm_only` unless the round explicitly tests API-assisted writing.
+- For DeepSeek-assisted writing runs, require `DEEPSEEK_API_KEY` in the process environment before starting the real workflow; do not silently fall back to Codex/local section writing.
 - Keep NotebookLM Q&A serial by default (`max_concurrency: 1`) unless a round explicitly tests parallelism.
+- Keep each NotebookLM `ask` bounded at no more than 240 seconds; longer-running questions should fail as structured retrieval errors and be handled by retry/follow-up logic.
 - Source-specific deep dive is file-level: use `source_id/title`, not chapter-level citation validation.
 - Trace refs should be notebook-scoped: carry `notebook_id` with `source_refs`, `citation_refs`, and `evidence_trace` so identical citation numbers or titles in different notebooks remain distinguishable.
 - Source-specific deep dive breadth should default to all resolved source candidates from base retrieval/citation sweep; this does not mean all files in the NotebookLM notebook.
@@ -68,3 +70,5 @@ Every optimization round must update `docs/optimization_progress.md` with:
 - Markdown rendering: section drafts can render list-valued NotebookLM fields awkwardly; normalize list display before polished output.
 - Appendix source refs: package-level source refs can make claim source labels too verbose; keep trace in artifacts but summarize labels in reader-facing appendices.
 - Report quality: mock-mode report quality is green after section-contract explicitness; the education-evaluation real run completed with WARN due to claim wording.
+- DeepSeek run: `education_evaluation_ai_deepseek_20260527_retry2` completed end-to-end with DeepSeek section writing and produced `final_report.md`, but the run status remains `BLOCKED` because one base NotebookLM query returned ERROR and `RetrievalCompletenessGate` stayed non-green.
+- API section-writing prompts should be compact and artifact-bound; do not pass raw NotebookLM responses, full evidence traces, or full citation arrays into DeepSeek when a section only needs curated material fields.

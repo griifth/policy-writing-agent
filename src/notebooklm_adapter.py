@@ -18,10 +18,17 @@ class NotebookLMAdapter:
         ("ask",),
     }
 
-    def __init__(self, mode: str = "mock", cli_path: str | None = None, command_log_path: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        mode: str = "mock",
+        cli_path: str | None = None,
+        command_log_path: str | Path | None = None,
+        ask_timeout_seconds: int = 180,
+    ) -> None:
         self.mode = mode
         self.cli_path = cli_path or os.environ.get("NOTEBOOKLM_CLI_PATH") or shutil.which("notebooklm")
         self.command_log_path = Path(command_log_path) if command_log_path else None
+        self.ask_timeout_seconds = ask_timeout_seconds
 
     def _cli(self) -> str | None:
         if self.cli_path and Path(self.cli_path).exists():
@@ -69,7 +76,7 @@ class NotebookLMAdapter:
         result = self._run_cli(
             cli,
             ["ask", "-n", notebook_id, "--json", *source_args, prompt],
-            timeout=180,
+            timeout=self.ask_timeout_seconds,
             log_args=["ask", "-n", notebook_id, "--json", *source_args, "<prompt>"],
         )
         parsed = self._parse_cli_result(result)
@@ -137,7 +144,7 @@ class NotebookLMAdapter:
         result = self._run_cli(
             cli,
             ["ask", "-n", notebook_id, "--prompt-file", prompt_path, "--json"],
-            timeout=180,
+            timeout=self.ask_timeout_seconds,
             log_args=["ask", "-n", notebook_id, "--prompt-file", prompt_path, "--json"],
         )
         return self._parse_cli_result(result)
@@ -153,13 +160,23 @@ class NotebookLMAdapter:
         if command_key not in self.ALLOWED_COMMANDS:
             raise RuntimeError(f"NotebookLM command is not allowed by capability policy: {' '.join(args)}")
         started_at = utc_timestamp()
-        result = subprocess.run(
-            [cli, *args],
-            text=True,
-            capture_output=True,
-            check=False,
-            timeout=timeout,
-        )
+        try:
+            result = subprocess.run(
+                [cli, *args],
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as exc:
+            stdout = _decode_timeout_output(exc.stdout)
+            stderr = _decode_timeout_output(exc.stderr)
+            result = subprocess.CompletedProcess(
+                [cli, *args],
+                returncode=124,
+                stdout=stdout,
+                stderr=stderr or f"NotebookLM CLI command timed out after {timeout} seconds.",
+            )
         self._append_command_log(
             {
                 "started_at": started_at,
@@ -170,6 +187,7 @@ class NotebookLMAdapter:
                 "returncode": result.returncode,
                 "stdout_bytes": len(result.stdout.encode("utf-8")),
                 "stderr_bytes": len(result.stderr.encode("utf-8")),
+                "timeout_seconds": timeout,
             }
         )
         return result
@@ -367,6 +385,16 @@ def _source_args(source_ids: Any) -> list[str]:
             continue
         args.extend(["-s", str(source_id)])
     return args
+
+
+def _decode_timeout_output(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    if isinstance(value, str):
+        return value
+    return str(value)
 
 
 def _first_source_id(source_ids: Any) -> str:
