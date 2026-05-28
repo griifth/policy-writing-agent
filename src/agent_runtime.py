@@ -4,6 +4,7 @@ import json
 import os
 import time
 from dataclasses import dataclass
+from http.client import IncompleteRead
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -13,9 +14,11 @@ AGENT_NAMES = [
     "QueryPlannerAgent",
     "NotebookLMAdapter",
     "MaterialPackAgent",
+    "MaterialCompressionAgent",
     "MatrixBuilderAgent",
     "SectionContractAgent",
     "SectionComposerAgent",
+    "AbstractComposerAgent",
     "PlanReviewerAgent",
     "RetrievalCompletenessGate",
     "MaterialPackAudit",
@@ -33,7 +36,7 @@ AGENT_NAMES = [
 RUNTIME_PROFILES = {"notebooklm_only", "api_assisted"}
 DRIVERS = {"codex", "api"}
 API_PROVIDERS = {"openai", "anthropic", "deepseek"}
-API_DRIVER_SUPPORTED_AGENTS = {"SectionComposerAgent"}
+API_DRIVER_SUPPORTED_AGENTS = {"AbstractComposerAgent", "MaterialCompressionAgent", "SectionComposerAgent"}
 KNOWLEDGE_AGENT_NAMES = {"NotebookLMAdapter"}
 
 
@@ -472,9 +475,9 @@ def _complete_anthropic(provider: dict[str, Any], config: dict[str, Any], prompt
 
 
 def _post_json(url: str, payload: dict[str, Any], headers: dict[str, str], *, timeout_seconds: int) -> dict[str, Any]:
-    request = Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
     last_error: Exception | None = None
     for attempt in range(1, 4):
+        request = Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
         try:
             with urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310 - user-configured API endpoint.
                 data = json.loads(response.read().decode("utf-8"))
@@ -482,10 +485,11 @@ def _post_json(url: str, payload: dict[str, Any], headers: dict[str, str], *, ti
         except HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
             raise RuntimeError(f"API request failed with HTTP {exc.code}: {body}") from exc
-        except URLError as exc:
+        except (URLError, IncompleteRead, TimeoutError, ConnectionResetError, BrokenPipeError) as exc:
             last_error = exc
             if attempt == 3:
-                raise RuntimeError(f"API request failed: {exc.reason}") from exc
+                reason = getattr(exc, "reason", repr(exc))
+                raise RuntimeError(f"API request failed: {reason}") from exc
             time.sleep(2 * attempt)
     else:
         raise RuntimeError(f"API request failed: {last_error}") from last_error

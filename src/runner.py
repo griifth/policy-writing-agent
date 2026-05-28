@@ -11,11 +11,12 @@ from agent_runtime import build_agent_runtime
 from io_utils import ensure_dir, load_yaml, timestamp_run_id, update_workflow_state, utc_timestamp, write_json, write_text
 from manifest import build_manifest, collect_artifacts
 from material_pack_builder import audit_material_package, build_material_packages
+from material_compressor import compress_materials
 from matrix_builder import build_all_matrices
 from notebooklm_adapter import NotebookLMAdapter
 from progress import append_progress_log, record_artifact_event, update_task_ledger, write_policy_report_contract, write_run_status_md
 from query_planner import build_query_jobs
-from report_assembler import assemble_report
+from report_assembler import assemble_report, build_abstract_prompt
 from review_gates import (
     attach_audited_hashes,
     review_claim_scope,
@@ -279,6 +280,40 @@ def run_workflow(task_config_path: str, run_id: str | None = None) -> dict[str, 
         record_artifact_event(run_dir, "matrix_building", "MatrixBuilderAgent", run_dir / f"{name}.json", f"Matrix artifact {name}.")
     _mark_phase(run_dir, "matrix_building", "PASS", "Build report plan and section plan.", {"matrix_count": len(matrices)})
 
+    compression_result: dict[str, Any] | None = None
+    compression_config = execution.get("material_compression", {})
+    if compression_config.get("enabled", agent_runtime.profile == "api_assisted"):
+        _mark_phase(
+            run_dir,
+            "material_compression",
+            "RUNNING",
+            "Compress material packages into section slices.",
+            {"profile": compression_config.get("profile", "deepseek_chunked" if agent_runtime.profile == "api_assisted" else "local_fallback")},
+        )
+        compression_result = compress_materials(
+            material_packages,
+            matrices,
+            section_contracts,
+            task_spec,
+            agent_runtime,
+            run_dir,
+            compression_config,
+        )
+        compression_manifest = compression_result["manifest"]
+        record_artifact_event(run_dir, "material_compression", "MaterialCompressionAgent", run_dir / "compression" / "compression_jobs.json", "Material compression jobs.")
+        record_artifact_event(run_dir, "material_compression", "MaterialCompressionAgent", run_dir / "compression" / "report_narrative_spine.json", "Report narrative spine.")
+        compression_verdict = "PASS" if compression_manifest.get("final_status") == "PASS" else "WARN"
+        record_artifact_event(run_dir, "material_compression", "MaterialCompressionAgent", run_dir / "compression" / "section_slices.json", "Section-specific material slices.", compression_verdict)
+        record_artifact_event(run_dir, "material_compression", "MaterialCompressionAgent", run_dir / "compression" / "compression_manifest.json", "Material compression manifest.", compression_verdict)
+        record_artifact_event(run_dir, "material_compression", "MaterialCompressionAgent", run_dir / "compression" / "compression_errors.json", "Material compression errors.", "WARN" if compression_result.get("errors") else "PASS")
+        _mark_phase(
+            run_dir,
+            "material_compression",
+            compression_verdict,
+            "Build report plan and section plan.",
+            {"chunk_count": len(compression_manifest.get("chunks", [])), "error_count": len(compression_result.get("errors", [])), "final_status": compression_manifest.get("final_status")},
+        )
+
     report_plan = build_report_plan(task_spec, matrices, section_contracts)
     write_text(run_dir / "POLICY_REPORT_PLAN.md", report_plan)
     record_artifact_event(run_dir, "report_plan", "SectionContractAgent", run_dir / "POLICY_REPORT_PLAN.md", "Report plan.")
@@ -314,7 +349,14 @@ def run_workflow(task_config_path: str, run_id: str | None = None) -> dict[str, 
             },
         )
         if agent_runtime.driver_for("SectionComposerAgent") == "api":
-            section_prompt = build_section_prompt(section_id, section_data["contract"], material_packages, claims, matrices)
+            section_prompt = build_section_prompt(
+                section_id,
+                section_data["contract"],
+                material_packages,
+                claims,
+                matrices,
+                compression_result["section_slices"] if compression_result else None,
+            )
             write_text(run_dir / "section_drafts" / f"{section_id}.prompt.md", section_prompt)
             record_artifact_event(
                 run_dir,
@@ -348,8 +390,19 @@ def run_workflow(task_config_path: str, run_id: str | None = None) -> dict[str, 
     record_artifact_event(run_dir, "section_drafts", "ClaimAuditAgent", run_dir / "review_reports" / "claim_scope_review.json", "Claim scope review.", claim_review["verdict"])
     _mark_phase(run_dir, "section_drafts", _max_verdict([section_contract_review, claim_review]), "Assemble and review final report.", {"section_count": len(section_drafts)})
 
+    abstract_text = None
+    if agent_runtime.driver_for("AbstractComposerAgent") == "api":
+        _mark_phase(run_dir, "abstract", "RUNNING", "Generate final abstract from completed section drafts.", {})
+        abstract_prompt = build_abstract_prompt(task_spec, section_drafts)
+        write_text(run_dir / "abstract.prompt.md", abstract_prompt)
+        record_artifact_event(run_dir, "abstract", "AbstractComposerAgent", run_dir / "abstract.prompt.md", "API prompt for final abstract.")
+        abstract_text = agent_runtime.complete_text("AbstractComposerAgent", abstract_prompt)
+        write_text(run_dir / "abstract.md", abstract_text)
+        record_artifact_event(run_dir, "abstract", "AbstractComposerAgent", run_dir / "abstract.md", "Generated final abstract.")
+        _mark_phase(run_dir, "abstract", "PASS", "Review final report.", {"abstract_bytes": len(abstract_text.encode("utf-8"))})
+
     review_reports = [plan_review, notebooklm_preflight, retrieval_review, material_pack_audit_review, material_review, evidence_review, section_contract_review, claim_review]
-    final_report = assemble_report(task_spec, section_drafts, review_reports, material_packages, matrices)
+    final_report = assemble_report(task_spec, section_drafts, review_reports, material_packages, matrices, abstract_text)
     report_quality_review = review_report_quality(final_report, review_reports)
     report_quality_review = attach_audited_hashes(report_quality_review, [*[Path("section_drafts") / filename for filename in section_filenames.values()]], run_dir)
     review_reports.append(report_quality_review)
@@ -365,7 +418,7 @@ def run_workflow(task_config_path: str, run_id: str | None = None) -> dict[str, 
     write_json(run_dir / "review_reports" / "drift_review.json", drift_review)
     record_artifact_event(run_dir, "review_gates", "DriftReviewerAgent", run_dir / "review_reports" / "drift_review.json", "Reviewed input drift review.", drift_review["verdict"])
     _mark_phase(run_dir, "review_gates", _max_verdict(review_reports), "Write final report and manifest.", {"review_count": len(review_reports)})
-    final_report = assemble_report(task_spec, section_drafts, review_reports, material_packages, matrices)
+    final_report = assemble_report(task_spec, section_drafts, review_reports, material_packages, matrices, abstract_text)
     write_text(run_dir / "final_report.md", final_report)
     record_artifact_event(run_dir, "final_assembly", "ReportAssembler", run_dir / "final_report.md", "Final report.", _max_verdict(review_reports))
     _mark_phase(run_dir, "final_assembly", _max_verdict(review_reports), "Collect manifest.", {"path": "final_report.md"})

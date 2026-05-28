@@ -1181,3 +1181,195 @@ Result:
 ### Next Round Target
 
 Add a bounded retry/follow-up path for failed base NotebookLM query jobs, starting with `05_impact`, before material-pack assembly. Then improve section-specific API prompt packing so each DeepSeek section receives only its required material slices.
+
+## 2026-05-28 DeepSeek Chunked Material Compression
+
+### Objective
+
+Move section prompt compression from an inline `SectionComposerAgent` helper into an auditable `MaterialCompressionAgent` stage that can use DeepSeek for semantic chunk compression, with bounded retries, local fallback, and explicit error logs.
+
+### Main-Agent Decision
+
+Implemented DeepSeek compression as a post-material, pre-writing stage. The agent consumes only Codex-prepared artifacts, never calls NotebookLM or external search, and preserves source trace locally. It chunks material by semantic field group, asks DeepSeek to summarize each chunk into section-oriented points, then merges them into `section_slices.json` plus a `report_narrative_spine.json` for cross-section continuity.
+
+### Files Changed
+
+- `src/material_compressor.py`
+- `src/runner.py`
+- `src/section_composer.py`
+- `src/agent_runtime.py`
+- `config/report_task.education_evaluation.deepseek.yaml`
+- `docs/optimization_progress.md`
+- `docs/optimization_guardrails.md`
+
+### Validation
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile src/*.py
+DEEPSEEK_API_KEY=dummy PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY'
+from io_utils import load_yaml
+from agent_runtime import build_agent_runtime
+cfg = load_yaml('config/report_task.education_evaluation.deepseek.yaml')
+rt = build_agent_runtime(cfg['agent_runtime'])
+print(rt.validate())
+print(rt.driver_for('MaterialCompressionAgent'), rt.agent_config('MaterialCompressionAgent'))
+PY
+PYTHONDONTWRITEBYTECODE=1 python3 src/runner.py --task config/report_task.yaml --run-id material_compression_mock_20260528
+```
+
+Additional controlled validation used the existing real run artifacts from `education_evaluation_ai_deepseek_20260527_retry2` without rerunning NotebookLM:
+
+- Local fallback compression smoke generated five section slices successfully.
+- DeepSeek API compression smoke generated `section_slices.json`, `compression_manifest.json`, `compression_errors.json`, `compression_jobs.json`, and `report_narrative_spine.json`.
+- API compression smoke result: `PASS_WITH_WARNINGS`; six chunks completed, `insight` failed once with `IncompleteRead(0 bytes read)` and then passed on retry.
+- Prompt size check using `section_slices.json`: hotspot 17,458 bytes, theme 6,416 bytes, comparison 16,460 bytes, impact 9,073 bytes, insight 20,577 bytes.
+
+### Result
+
+- Added `MaterialCompressionAgent` to the runtime and allowed API execution only for this compression agent and `SectionComposerAgent`.
+- Added semantic chunks: `overview_policy`, `hotspot_core_lanes`, `comparison_lanes`, `impact_lanes`, `claims`, and `insight`.
+- Added per-chunk retry/fallback behavior and explicit error artifacts.
+- Added local `source_refs` preservation; `citation_refs` and `evidence_trace` remain in artifacts but are not sent to DeepSeek compression prompts.
+- `SectionComposerAgent` now uses `section_slices.json` plus `narrative_spine` when available, and falls back to the prior compacted material prompt if compression is absent.
+- Default notebooklm-only mock workflow remains green.
+
+### Known Warnings
+
+- Compression currently has no dedicated review gate; its status is represented through manifest/error artifacts and progress events.
+- Superseded by the compressed rerun below: the initial smoke showed `claims` chunk bloat, and the follow-up fix now strips trace-heavy fields before API calls.
+- The compression smoke used existing artifacts, not a fresh full NotebookLM+DeepSeek report run.
+
+### Next Round Target
+
+Add a `MaterialCompressionReviewerAgent` to validate section slice coverage, source-ref retention, and over-compression risk; then run a fresh full DeepSeek report with compression enabled.
+
+## 2026-05-28 Compressed DeepSeek Report Rerun
+
+### Objective
+
+Rerun the education-evaluation report with DeepSeek material compression and DeepSeek section writing, using the topic `教育评价在人工智能时代的转变`.
+
+### Main-Agent Decision
+
+The first full rerun proved that the new compression stage was wired into the workflow, but it exposed two production issues: the `claims` chunk could still carry trace-heavy fields into fallback compression, and `SectionComposerAgent` API calls needed the same transient network retry protection as compression calls. The fix was to hard-strip trace/citation/source/raw fields before API compression, cap fallback point text, cap final section-slice prompt payloads, and extend API POST retry handling to `IncompleteRead`, timeout, connection reset, and broken pipe failures.
+
+### Files Changed
+
+- `src/material_compressor.py`
+- `src/section_composer.py`
+- `src/agent_runtime.py`
+- `docs/optimization_progress.md`
+- `docs/optimization_guardrails.md`
+
+### Validation
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile src/*.py
+python3 - <<'PY'
+# Size smoke using real run artifacts:
+# _build_compression_jobs(...) total input bytes dropped from ~6.1MB to 548,574 bytes.
+# Section prompt sizes: hotspot 15,258; theme 7,421; comparison 15,521; impact 12,701; insight 19,391 bytes.
+PY
+rg '\[[0-9]+\]' runs/education_evaluation_ai_deepseek_compressed_20260528/final_report.md || true
+```
+
+Real rerun output:
+
+- Run directory: `runs/education_evaluation_ai_deepseek_compressed_20260528`.
+- NotebookLM real retrieval completed 70 query result artifacts: 6 base jobs plus 64 source-lane jobs from 16 resolved source candidates.
+- NotebookLM failures were preserved as structured retrieval errors: base `03_deep_dive`, source-lane `58_impact_deep_dive_13`, `67_hotspot_rationale_deep_dive_16`, and `70_impact_deep_dive_16`.
+- DeepSeek compression completed with `compression_manifest.final_status: PASS`; all six chunks passed and `compression_errors.json` is an empty array.
+- `section_slices.json` is 65,308 bytes.
+- DeepSeek wrote all five section drafts and assembled `final_report.md` at 72,808 bytes.
+- Final report contains no visible NotebookLM `[n]` citation markers.
+
+Review gate result:
+
+- PASS: NotebookLM preflight, plan review, material pack audit, material coverage, evidence use, drift review.
+- BLOCKED: retrieval completeness, because four NotebookLM query jobs returned structured errors or missing expected fields.
+- WARN: section contract, claim scope, report quality, kill argument.
+
+### Known Warnings
+
+- The report is usable as a draft, but not a green run because retrieval completeness remains `BLOCKED`.
+- `ClaimAuditAgent` currently checks literal claim IDs/claim text usage; DeepSeek often paraphrases claims, so the gate warns even when section content uses the idea. A claim-linking or paraphrase-aware review pass is needed.
+- Several sections still contain `MATERIAL_NEEDED`, which is correct under the no-fabrication rule but lowers polish.
+- With `source_deep_dive_limit: "all"`, 16 candidates create 64 NotebookLM source-lane calls. This improves breadth but is slow.
+
+### Next Round Target
+
+Add a bounded NotebookLM retry/follow-up path for failed query jobs, then add a compression/claim reviewer that can distinguish paraphrased claim use from omitted claim use.
+
+## 2026-05-28 Content-Based Final Abstract
+
+### Objective
+
+Replace the boilerplate final-report abstract that described the Agent workflow with an abstract derived from the generated report content.
+
+### Main-Agent Decision
+
+Implemented the change in `ReportAssembler` as local post-processing over completed section drafts. The abstract now extracts one natural content sentence from each major section and skips headings, tables, lists, contract checks, code spans, citation markers, and `MATERIAL_NEEDED` fragments. This keeps the abstract artifact-bound and avoids another API call.
+
+### Files Changed
+
+- `src/report_assembler.py`
+- `docs/optimization_progress.md`
+- `docs/optimization_guardrails.md`
+
+### Validation
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile src/*.py
+rg '\[[0-9]+\]' runs/education_evaluation_ai_deepseek_compressed_20260528/final_report.md || true
+```
+
+Regenerated `runs/education_evaluation_ai_deepseek_compressed_20260528/final_report.md` from existing section drafts. The abstract no longer says the report was generated by a NotebookLM-backed Agent, and no visible `[n]` citation markers were introduced.
+
+### Known Warnings
+
+The current abstract is extractive rather than fully generative. It is safer and artifact-bound, but a future `AbstractComposerAgent` could produce a more polished abstractive summary after section drafts pass review gates.
+
+## 2026-05-28 DeepSeek Final Abstract Composer
+
+### Objective
+
+Add a true abstractive summary step after article section generation, using DeepSeek API as a bounded writing executor over the completed section drafts.
+
+### Main-Agent Decision
+
+Added `AbstractComposerAgent` as an API-assisted writing agent. It runs after all section drafts and their section/claim reviews are complete, writes `abstract.prompt.md` and `abstract.md`, and passes the generated abstract into `ReportAssembler`. The prompt is built from the generated section text only; it explicitly forbids describing NotebookLM, Agents, material packages, matrices, section contracts, workflow, source IDs, or external facts. The previous extractive abstract remains as a local fallback when no API abstract is supplied.
+
+### Files Changed
+
+- `src/agent_runtime.py`
+- `src/report_assembler.py`
+- `src/runner.py`
+- `config/report_task.education_evaluation.deepseek.yaml`
+- `docs/optimization_progress.md`
+- `docs/optimization_guardrails.md`
+
+### Validation
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile src/*.py
+DEEPSEEK_API_KEY=dummy PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY'
+from io_utils import load_yaml
+from agent_runtime import build_agent_runtime
+cfg = load_yaml('config/report_task.education_evaluation.deepseek.yaml')
+rt = build_agent_runtime(cfg['agent_runtime'])
+print(rt.validate())
+print(rt.driver_for('AbstractComposerAgent'), rt.agent_config('AbstractComposerAgent'))
+PY
+rg '\[[0-9]+\]|NotebookLM|Agent|材料包|矩阵|章节契约|工作流' runs/education_evaluation_ai_deepseek_compressed_20260528/abstract.md || true
+```
+
+Real DeepSeek abstract smoke on existing section drafts:
+
+- `abstract.prompt.md`: 33,855 bytes.
+- `abstract.md`: 1,107 bytes.
+- Regenerated `runs/education_evaluation_ai_deepseek_compressed_20260528/final_report.md` with the DeepSeek abstract inserted.
+- The generated abstract did not contain visible citation markers or workflow terms.
+
+### Known Warnings
+
+The abstract step is not yet part of a fresh full NotebookLM rerun after this code change; it was validated by reusing the completed section drafts from `education_evaluation_ai_deepseek_compressed_20260528`.

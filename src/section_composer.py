@@ -65,22 +65,25 @@ def build_section_prompt(
     materials: list[dict[str, Any]],
     claims: list[dict[str, Any]],
     matrices: dict[str, Any],
+    section_slices: dict[str, Any] | None = None,
 ) -> str:
-    payload = {
-        "section_id": section_id,
-        "contract": contract,
-        "material_packages": [_compact_material_package(package) for package in materials],
-        "claims": [_compact_claim(claim) for claim in claims[:12]],
-        "matrices": _compact_value(
-            {
-                "hotspot_theme_matrix": matrices.get("hotspot_theme_matrix", []),
-                "comparison_matrix": matrices.get("comparison_matrix", []),
-                "impact_table": matrices.get("impact_table", []),
-                "insight_table": matrices.get("insight_table", []),
-            },
-            max_depth=4,
-        ),
-    }
+    payload = _section_slice_payload(section_id, contract, section_slices)
+    if payload is None:
+        payload = {
+            "section_id": section_id,
+            "contract": contract,
+            "material_packages": [_compact_material_package(package) for package in materials],
+            "claims": [_compact_claim(claim) for claim in claims[:12]],
+            "matrices": _compact_value(
+                {
+                    "hotspot_theme_matrix": matrices.get("hotspot_theme_matrix", []),
+                    "comparison_matrix": matrices.get("comparison_matrix", []),
+                    "impact_table": matrices.get("impact_table", []),
+                    "insight_table": matrices.get("insight_table", []),
+                },
+                max_depth=4,
+            ),
+        }
     return "\n".join(
         [
             "你是 SectionComposerAgent，负责生成政策研究报告的一个章节。",
@@ -93,6 +96,28 @@ def build_section_prompt(
             "```",
         ]
     )
+
+
+def _section_slice_payload(section_id: str, contract: dict[str, Any], section_slices: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(section_slices, dict):
+        return None
+    slices = section_slices.get("section_slices")
+    if not isinstance(slices, dict) or not isinstance(slices.get(section_id), dict):
+        return None
+    narrative_spine = section_slices.get("narrative_spine", {})
+    section_slice = _compact_value(slices[section_id], max_depth=5, max_string=900, max_items=20)
+    return {
+        "section_id": section_id,
+        "contract": contract,
+        "narrative_spine": {
+            "central_thesis": narrative_spine.get("central_thesis", ""),
+            "throughline": narrative_spine.get("throughline", []),
+            "section_role": narrative_spine.get("section_roles", {}).get(section_id, section_slice.get("role", "")),
+            "handoff": section_slice.get("handoff", narrative_spine.get("handoffs", {}).get(section_id, {})),
+            "continuity_rules": narrative_spine.get("continuity_rules", []),
+        },
+        "section_slice": section_slice,
+    }
 
 
 def _compact_material_package(package: dict[str, Any]) -> dict[str, Any]:

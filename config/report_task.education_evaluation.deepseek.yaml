@@ -29,6 +29,11 @@ execution:
     - impact_deep_dive
   output_root: "runs"
   overwrite_latest: true
+  material_compression:
+    enabled: true
+    profile: "deepseek_chunked"
+    max_attempts: 3
+    timeout_seconds: 240
 
 agent_runtime:
   runtime_profile: "api_assisted"
@@ -58,6 +63,11 @@ agent_runtime:
       driver: "codex"
     MatrixBuilderAgent:
       driver: "codex"
+    MaterialCompressionAgent:
+      driver: "api"
+      provider: "deepseek"
+      model: "deepseek-v4-pro"
+      max_tokens: 7000
     SectionContractAgent:
       driver: "codex"
     SectionComposerAgent:
@@ -65,6 +75,11 @@ agent_runtime:
       provider: "deepseek"
       model: "deepseek-v4-pro"
       max_tokens: 8000
+    AbstractComposerAgent:
+      driver: "api"
+      provider: "deepseek"
+      model: "deepseek-v4-pro"
+      max_tokens: 1200
     PlanReviewerAgent:
       driver: "codex"
     RetrievalCompletenessGate:
