@@ -1,0 +1,7 @@
+.env
+.DS_Store
+runs/
+__pycache__/
+*.pyc
+work/
+workflow/tmp_*.py
