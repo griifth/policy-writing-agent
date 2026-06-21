@@ -1,0 +1,13 @@
+.env
+.DS_Store
+__pycache__/
+*.pyc
+
+# 运行产物体积和内容都随任务变化，保留在本地 runs/。
+runs/
+logs/
+
+# 文风原始样本属于本地素材，不进入代码仓库。
+style_dna/raw/
+style_dna/processed/
+style_dna/wiki/_distill_raw_output.md
