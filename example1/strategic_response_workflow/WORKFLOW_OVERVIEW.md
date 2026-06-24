@@ -121,5 +121,20 @@
 - 推理层共享：`reasoning_dna/conventions.md`、`reasoning_dna/review_scope.md`、`reasoning_dna/DESIGN.md`
 - 文风层：`style_dna/wiki/`、`style_dna/review_scope.md`
 - 机构层：`institution_profile.md`、`institution_profile/CORPUS_RECOMMENDATION_LOGIC.md`（对策生成思路，从38篇蒸馏）
-- 审稿模板：`reviewers/instruction_template.md`
-- 运行产物：`runs/<run-id>/`（`judgment_outputs/`、`drafts/`、`review_reports/`、`review_io/`、`*_snapshot*`、`run_state.json`、`run_log.md`）
+- 审稿：`reviewers/instruction_template.md`；三维 scope = style_and_expression / reasoning_compliance / precedent_check（`reviewers/precedent_check_scope.md`）
+- 配套 skill：`.claude/skills/{distill-reasoning-dna, audit-extend-suggestions}/`
+- 独立工具：`tools/suggestion_audit_extend.py`（建议核查—延展硬判定）
+- 运行产物：`runs/<run-id>/`（`judgment_outputs/`、`drafts/`、`review_reports/`、`review_io/`、`suggestion_audit/`、`*_snapshot*`、`run_state.json`、`run_log.md`）
+
+---
+
+## 七、配套 skill / 工具（复用本套方法的固化件）
+
+| 名称 | 类型 | 干什么 | 位置 | 进主链路？ |
+|---|---|---|---|---|
+| **distill-reasoning-dna** | skill | 为某体例蒸馏 reasoning_dna 判断"刀"：dev↔review 对抗循环，从金样本逆向抽取、写盘、接注入、过线（6 硬门 + 探针区分力） | `.claude/skills/distill-reasoning-dna/`（含 `scripts/distill_loop_template.js`） | 否（建库时用） |
+| **audit-extend-suggestions** | skill + 工具 | 独立的建议"防重—补深—找空白"外部审计：抽取成稿建议→联网核查中国先例→下载政策原文→按缺口六分类延展→发散找真空白→**代码硬判定**舍弃/延展/保留/新增 | `.claude/skills/audit-extend-suggestions/` + `tools/suggestion_audit_extend.py` + `reviewers/precedent_check_scope.md` | **否**（独立增强，联网；不写回正文，主链路仍 KB-only） |
+
+要点：
+- 两者都**不进 runner 自动链路**——distill 在"建库"时用，audit-extend 在"成稿后"作外部审计用。
+- audit-extend 的**硬判定是代码**（`tools/suggestion_audit_extend.py decide`）：决策表 + 来源分级（媒体不单独撑高置信）+ 延展须 gap_evidence + 发散 4 硬门 + 禁伪空白；联网事实只入 `runs/<id>/suggestion_audit/`、逐条带 URL，删改与并入正文**交人确认**。
