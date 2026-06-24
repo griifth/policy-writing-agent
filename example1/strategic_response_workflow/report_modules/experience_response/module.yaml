@@ -24,3 +24,9 @@ retrieval_types:
   - effectiveness_evidence   # 实施效果与有效性证据（含证据状态）
   - china_status_and_gaps    # 中国现状、短板与制度约束
   - adaptation_evidence      # 可迁移性与中国适配的依据
+
+# reasoning_dna 注入映射：step(任务 id) -> 刀（report_modules/experience_response/reasoning_dna/<刀>.md）
+# 刀文件缺失时该步零注入（gated）。MVP 两刀：成因/有效性。
+reasoning_dna_injection:
+  assign_material_roles: [efficacy]
+  map_pressure_judgment: [cause]

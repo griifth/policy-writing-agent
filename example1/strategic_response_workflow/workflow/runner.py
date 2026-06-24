@@ -325,6 +325,7 @@ class StrategicResponsePipeline:
             (self.run_dir / folder).mkdir(parents=True, exist_ok=True)
 
         self._copy_style_dna_snapshot()
+        self._copy_reasoning_dna_snapshot()
 
         self._write(
             "input.yaml",
@@ -414,6 +415,7 @@ class StrategicResponsePipeline:
                 self._all_retrieval_text(),
             ]
         )
+        prompt = self._with_reasoning_dna(prompt, "assign_material_roles")
         self._write("generated_prompts/material_roles.md", prompt)
         self._ask_llm(prompt, "judgment_outputs/material_roles.md")
 
@@ -431,6 +433,7 @@ class StrategicResponsePipeline:
                 self._all_retrieval_text(),
             ]
         )
+        prompt = self._with_reasoning_dna(prompt, "map_pressure_judgment")
         self._write("generated_prompts/pressure_judgment_mapping.md", prompt)
         self._ask_llm(prompt, "judgment_outputs/pressure_judgment_mapping.md")
 
@@ -452,6 +455,7 @@ class StrategicResponsePipeline:
                 self._all_retrieval_text(),
             ]
         )
+        prompt = self._with_reasoning_dna(prompt, "plan_article")
         self._write("generated_prompts/planning.md", prompt)
         self._ask_llm(prompt, "planning_outputs/article_plan.md")
 
@@ -473,6 +477,7 @@ class StrategicResponsePipeline:
                 self._all_retrieval_text(),
             ]
         )
+        prompt = self._with_reasoning_dna(prompt, "build_suggestion_pool")
         self._write("generated_prompts/suggestion_pool.md", prompt)
         self._ask_llm(prompt, "suggestion_outputs/suggestion_pool.md")
 
@@ -490,6 +495,7 @@ class StrategicResponsePipeline:
                 self._read("suggestion_outputs/suggestion_pool.md"),
             ]
         )
+        prompt = self._with_reasoning_dna(prompt, "prioritize_policy_options")
         self._write("generated_prompts/policy_priority.md", prompt)
         self._ask_llm(prompt, "suggestion_outputs/policy_priority.md")
 
@@ -762,6 +768,47 @@ class StrategicResponsePipeline:
             return "未发现 style_dna/wiki 规则，本次按基础提示词运行。"
         return "\n\n".join(blocks)
 
+    def _reasoning_dna_text(self, step_id: str) -> str:
+        """按 module.yaml 的 reasoning_dna_injection 映射，取该步对应的刀 + 共享 conventions。
+
+        映射缺、或所列刀文件全缺 → 返回空串（gated：现有模块尚无刀时行为零变化）。
+        """
+        injection = (self.module_meta or {}).get("reasoning_dna_injection") or {}
+        cuts = injection.get(step_id) or []
+        present = [
+            c for c in cuts if (self.module_root / "reasoning_dna" / f"{c}.md").is_file()
+        ]
+        if not present:
+            return ""
+        blocks = []
+        conventions = WORKFLOW_ROOT / "reasoning_dna" / "conventions.md"
+        if conventions.is_file():
+            blocks.append(f"## conventions\n\n{conventions.read_text(encoding='utf-8')}")
+        for cut in present:
+            path = self.module_root / "reasoning_dna" / f"{cut}.md"
+            blocks.append(f"## {cut}\n\n{path.read_text(encoding='utf-8')}")
+        return "\n\n".join(blocks)
+
+    def _with_reasoning_dna(self, prompt: str, step_id: str) -> str:
+        """把该步的 reasoning_dna 逼问追加到 prompt 末尾锚点；无刀则原样返回。"""
+        block = self._reasoning_dna_text(step_id)
+        if not block:
+            return prompt
+        return prompt + "\n\n## 本步必答逼问（须留降级扫描记录）\n\n" + block
+
+    def _copy_reasoning_dna_snapshot(self) -> None:
+        """把本次模块的刀 + 共享 conventions 复制到 run 目录，便于复查。"""
+        target = self.run_dir / "reasoning_dna_snapshot"
+        conventions = WORKFLOW_ROOT / "reasoning_dna" / "conventions.md"
+        if conventions.is_file():
+            target.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(conventions, target / "conventions.md")
+        cut_dir = self.module_root / "reasoning_dna"
+        if cut_dir.is_dir():
+            for path in sorted(cut_dir.glob("*.md")):
+                target.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(path, target / path.name)
+
     def _copy_retrieval_outputs(self, run_id: str) -> None:
         """从既有运行目录复用 NotebookLM 检索材料。"""
         source_dir = self._resolve_run_dir(run_id) / "retrieval_outputs"
@@ -903,10 +950,15 @@ def parse_args() -> argparse.Namespace:
         choices=["style_and_expression", "reasoning_compliance"],
         help="handoff 审稿范围；默认只审文风与表述",
     )
+    modules_root = WORKFLOW_ROOT / "report_modules"
+    available_modules = sorted(
+        p.name for p in modules_root.iterdir() if p.is_dir()
+    ) if modules_root.is_dir() else []
+    available_hint = "、".join(available_modules) if available_modules else "（未找到）"
     parser.add_argument(
         "--report-type",
         default="strategic_response",
-        help="体例模块，对应 report_modules/ 下的目录名；当前可用：strategic_response",
+        help=f"体例模块，对应 report_modules/ 下的目录名；当前可用：{available_hint}",
     )
     parser.add_argument(
         "--llm-provider",

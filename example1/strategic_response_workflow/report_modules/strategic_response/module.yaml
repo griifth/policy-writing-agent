@@ -18,3 +18,11 @@ retrieval_types:
   - strategic_intent_and_impact
   - china_status_and_gaps
   - response_evidence
+
+# reasoning_dna 注入映射：step(任务 id) -> 刀（report_modules/strategic_response/reasoning_dna/<刀>.md）
+# 刀文件缺失时该步零注入（gated）。
+reasoning_dna_injection:
+  map_pressure_judgment: [intent, threat]
+  plan_article: [intent, threat]
+  build_suggestion_pool: [hedge]
+  prioritize_policy_options: [hedge]
