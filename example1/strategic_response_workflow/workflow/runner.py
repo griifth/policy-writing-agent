@@ -326,6 +326,7 @@ class StrategicResponsePipeline:
 
         self._copy_style_dna_snapshot()
         self._copy_reasoning_dna_snapshot()
+        self._copy_institution_profile_snapshot()
 
         self._write(
             "input.yaml",
@@ -400,6 +401,7 @@ class StrategicResponsePipeline:
                 self._all_retrieval_text(),
             ]
         )
+        prompt = self._with_institution_profile(prompt)
         self._write("generated_prompts/task_redefinition.md", prompt)
         self._ask_llm(prompt, "judgment_outputs/task_redefinition.md")
 
@@ -418,6 +420,7 @@ class StrategicResponsePipeline:
         prompt = self._with_reasoning_dna(prompt, "assign_material_roles")
         self._write("generated_prompts/material_roles.md", prompt)
         self._ask_llm(prompt, "judgment_outputs/material_roles.md")
+        # 注：material_roles 不注入机构 profile（建议落点约束只加在框问题/建议/写作步）
 
     def _map_pressure_judgment(self) -> None:
         """把事实压力转化为文章判断和中国含义。"""
@@ -456,6 +459,7 @@ class StrategicResponsePipeline:
             ]
         )
         prompt = self._with_reasoning_dna(prompt, "plan_article")
+        prompt = self._with_institution_profile(prompt)
         self._write("generated_prompts/planning.md", prompt)
         self._ask_llm(prompt, "planning_outputs/article_plan.md")
 
@@ -478,6 +482,7 @@ class StrategicResponsePipeline:
             ]
         )
         prompt = self._with_reasoning_dna(prompt, "build_suggestion_pool")
+        prompt = self._with_institution_profile(prompt)
         self._write("generated_prompts/suggestion_pool.md", prompt)
         self._ask_llm(prompt, "suggestion_outputs/suggestion_pool.md")
 
@@ -496,6 +501,7 @@ class StrategicResponsePipeline:
             ]
         )
         prompt = self._with_reasoning_dna(prompt, "prioritize_policy_options")
+        prompt = self._with_institution_profile(prompt)
         self._write("generated_prompts/policy_priority.md", prompt)
         self._ask_llm(prompt, "suggestion_outputs/policy_priority.md")
 
@@ -525,6 +531,7 @@ class StrategicResponsePipeline:
                 self._all_retrieval_text(),
             ]
         )
+        prompt = self._with_institution_profile(prompt)
         self._write("generated_prompts/writing.md", prompt)
         self._ask_llm(prompt, "drafts/current_article.md")
         self._copy("drafts/current_article.md", "final_article.md")
@@ -795,6 +802,23 @@ class StrategicResponsePipeline:
         if not block:
             return prompt
         return prompt + "\n\n## 本步必答逼问（须留降级扫描记录）\n\n" + block
+
+    def _institution_profile_text(self) -> str:
+        """读取机构定位与建议落点 profile（跨体例共享，always-on）；无文件则空串（gated）。"""
+        path = WORKFLOW_ROOT / "institution_profile.md"
+        return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+    def _with_institution_profile(self, prompt: str) -> str:
+        """把机构 profile（建议落点域 + 对策生成思路）追加到 prompt 末尾；无 profile 则原样返回。"""
+        block = self._institution_profile_text()
+        if not block:
+            return prompt
+        return prompt + "\n\n## 机构定位与建议落点（必须遵守）\n\n" + block
+
+    def _copy_institution_profile_snapshot(self) -> None:
+        path = WORKFLOW_ROOT / "institution_profile.md"
+        if path.is_file():
+            shutil.copyfile(path, self.run_dir / "institution_profile_snapshot.md")
 
     def _copy_reasoning_dna_snapshot(self) -> None:
         """把本次模块的刀 + 共享 conventions 复制到 run 目录，便于复查。"""
