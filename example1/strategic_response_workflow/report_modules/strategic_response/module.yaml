@@ -1,0 +1,20 @@
+# 体例模块：战略竞争分析 + 中国应对
+#
+# 适用：目标国家战略动向、竞争布局、技术封锁、人才争夺等主题。
+# 推理链：目标国家措施 -> 战略意图 -> 对中国压力 -> 中国短板 -> 应对策略
+#
+# 本文件由 workflow/runner.py 在运行时按 --report-type 载入。
+# 当前仅驱动 retrieval_types；流程步骤序列与提示词文件路径仍按约定解析
+# （prompts/、templates/article_template.md、source/sample.md）。
+
+name: strategic_response
+label: 战略竞争分析 + 中国应对
+
+# NotebookLM 六类检索任务（对应 prompts/retrieval.md 的检索任务类型）
+retrieval_types:
+  - strategy_background
+  - strategy_measures
+  - implementation_mechanism
+  - strategic_intent_and_impact
+  - china_status_and_gaps
+  - response_evidence

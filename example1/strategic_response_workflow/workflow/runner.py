@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import shutil
 import subprocess
@@ -15,6 +16,8 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+
+import yaml
 
 
 WORKFLOW_ROOT = Path(__file__).resolve().parents[1]
@@ -41,16 +44,6 @@ TASKS = [
     ("archive_log", "归档运行日志", "编排"),
 ]
 
-RETRIEVAL_TYPES = [
-    "strategy_background",
-    "strategy_measures",
-    "implementation_mechanism",
-    "strategic_intent_and_impact",
-    "china_status_and_gaps",
-    "response_evidence",
-]
-
-
 @dataclass(frozen=True)
 class Config:
     """命令行输入配置。"""
@@ -60,18 +53,40 @@ class Config:
     strategy_domain: str
     notebook_name: str
     china_response_focus: str
+    report_type: str = "strategic_response"
     llm_provider: str = "deepseek"
     reuse_materials_run: str | None = None
     dry_run: bool = False
     max_iterations: int = 2
+    reviewer: str = "inline"
+    review_scope: str = "style_and_expression"
+
+
+class ReviewHandoff(Exception):
+    """信号：运行在审稿步暂停，等待外部审稿报告，可 --resume 续跑。"""
+
+    def __init__(self, index: int) -> None:
+        super().__init__(f"awaiting external review at iter{index}")
+        self.index = index
 
 
 class StrategicResponsePipeline:
     """通用战略应对型文章生成流程。"""
 
-    def __init__(self, config: Config) -> None:
+    def __init__(
+        self, config: Config, *, run_id: str | None = None, resume: bool = False
+    ) -> None:
         self.config = config
-        self.run_id = self._make_run_id()
+        self.resume = resume
+        self._start_index = 1
+        self.module_root = WORKFLOW_ROOT / "report_modules" / config.report_type
+        if not self.module_root.is_dir():
+            raise FileNotFoundError(f"体例模块不存在: {self.module_root}")
+        self.module_meta = yaml.safe_load(
+            (self.module_root / "module.yaml").read_text(encoding="utf-8")
+        )
+        self.retrieval_types: list[str] = list(self.module_meta["retrieval_types"])
+        self.run_id = run_id or self._make_run_id()
         self.run_dir = WORKFLOW_ROOT / "runs" / self.run_id
         self.notebook_id = ""
         self.llm = None if config.dry_run else create_llm_client(config.llm_provider)
@@ -80,37 +95,217 @@ class StrategicResponsePipeline:
         self.failed_tasks: set[str] = set()
 
     def run(self) -> None:
-        """执行完整流程。"""
+        """执行完整流程；reviewer=handoff 时在审稿步暂停，可 --resume 续跑。"""
 
+        paused = False
         try:
-            self._run_task("init", self._init_run)
-            self._run_task("resolve_notebook", self._resolve_notebook)
-            self._run_task("build_retrieval_prompts", self._build_retrieval_prompts)
-            self._run_task("retrieve_materials", self._retrieve_materials)
-            self._run_task("redefine_task", self._redefine_task)
-            self._run_task("assign_material_roles", self._assign_material_roles)
-            self._run_task("map_pressure_judgment", self._map_pressure_judgment)
-            self._run_task("plan_article", self._plan_article)
-            self._run_task("build_suggestion_pool", self._build_suggestion_pool)
-            self._run_task("prioritize_policy_options", self._prioritize_policy_options)
-            self._run_task("write_draft", self._write_draft)
-
-            for index in range(1, self.config.max_iterations + 1):
-                self._run_task(f"review_draft.iter{index}", lambda i=index: self._review_draft(i))
-                if self._review_reaches_standard(index):
-                    self._copy("drafts/current_article.md", "final_article_reviewed.md")
-                    break
-                self._run_task(
-                    f"revise_article.iter{index}",
-                    lambda i=index: self._revise_article(i),
-                )
+            if self.resume:
+                for task_id, _, _ in TASKS:
+                    if task_id == "review_draft":
+                        break
+                    self.completed_tasks.add(task_id)
             else:
-                self._copy("drafts/current_article.md", "final_article_reviewed.md")
+                self._run_task("init", self._init_run)
+                self._run_task("resolve_notebook", self._resolve_notebook)
+                self._run_task("build_retrieval_prompts", self._build_retrieval_prompts)
+                self._run_task("retrieve_materials", self._retrieve_materials)
+                self._run_task("redefine_task", self._redefine_task)
+                self._run_task("assign_material_roles", self._assign_material_roles)
+                self._run_task("map_pressure_judgment", self._map_pressure_judgment)
+                self._run_task("plan_article", self._plan_article)
+                self._run_task("build_suggestion_pool", self._build_suggestion_pool)
+                self._run_task("prioritize_policy_options", self._prioritize_policy_options)
+                self._run_task("write_draft", self._write_draft)
+
+            self._review_revise_loop(self._start_index)
 
             self._run_task("compare_with_sample", self._compare_with_sample)
             self._run_task("export_docx", self._export_docx)
+        except ReviewHandoff as pause:
+            paused = True
+            self._emit_pause_notice(pause.index)
         finally:
-            self._run_task("archive_log", self._archive_log, stop_on_error=False)
+            if not paused:
+                self._run_task("archive_log", self._archive_log, stop_on_error=False)
+
+    def _review_revise_loop(self, start_index: int) -> None:
+        """审查—修改循环；reviewer=handoff 且报告缺失时抛 ReviewHandoff 暂停。"""
+
+        for index in range(start_index, self.config.max_iterations + 1):
+            self._do_review(index)
+            if self._review_reaches_standard(index):
+                self._copy("drafts/current_article.md", "final_article_reviewed.md")
+                return
+            self._run_task(
+                f"revise_article.iter{index}",
+                lambda i=index: self._revise_article(i),
+            )
+        self._copy("drafts/current_article.md", "final_article_reviewed.md")
+
+    def _do_review(self, index: int) -> None:
+        """inline=调 LLM 自审；handoff=确保有外部报告，否则写交接并暂停。"""
+
+        if self.config.reviewer == "handoff":
+            report_rel = f"review_reports/review_iter{index}.md"
+            if not (self.run_dir / report_rel).exists():
+                self._emit_review_handoff(index)
+                self._save_resume_state(index)
+                raise ReviewHandoff(index)
+            self.completed_tasks.add(f"review_draft.iter{index}")
+            self.completed_tasks.add("review_draft")
+            self._render_task_state(current_task=f"review_draft.iter{index}")
+            return
+        self._run_task(
+            f"review_draft.iter{index}", lambda i=index: self._review_draft(i)
+        )
+
+    # scope -> (拥有该范围审查标准的 DNA 目录, 该 DNA 在 run 内的快照子目录)
+    # 触发哪个范围，就读哪个 DNA 的 review_scope.md 作为“审什么”。
+    _SCOPE_SOURCES = {
+        "style_and_expression": ("style_dna", "style_dna_snapshot"),
+        "reasoning_compliance": ("reasoning_dna", "reasoning_dna_snapshot"),
+    }
+
+    def _existing_relpaths(self, subdir: str) -> list[str]:
+        directory = self.run_dir / subdir
+        if not directory.is_dir():
+            return []
+        return sorted(f"{subdir}/{item.name}" for item in directory.glob("*.md"))
+
+    def _emit_review_handoff(self, index: int) -> None:
+        """写审稿契约请求 + 由模板与 DNA 驱动的交接指令，供在场 agent 派生子 agent。
+
+        指令不写死在代码里：骨架来自 reviewers/instruction_template.md，
+        “审什么”来自本次触发范围对应 DNA 的 review_scope.md。改模板或改 DNA，下次自动反映。
+        """
+
+        scope = self.config.review_scope
+        dna_dir, snapshot_subdir = self._SCOPE_SOURCES.get(
+            scope, ("style_dna", "style_dna_snapshot")
+        )
+        scope_src = WORKFLOW_ROOT / dna_dir / "review_scope.md"
+        scope_desc = (
+            scope_src.read_text(encoding="utf-8").strip()
+            if scope_src.is_file()
+            else f"（未找到 {dna_dir}/review_scope.md，按 scope 名「{scope}」审查）"
+        )
+        standard_files = self._existing_relpaths(snapshot_subdir)
+        judgment_files = self._existing_relpaths("judgment_outputs")
+        output_rel = f"review_reports/review_iter{index}.md"
+
+        request = {
+            "run_id": self.run_id,
+            "report_type": self.config.report_type,
+            "label": self.module_meta.get("label", ""),
+            "iteration": index,
+            "scope": scope,
+            "scope_source": f"{dna_dir}/review_scope.md",
+            "draft": "drafts/current_article.md",
+            "standard_files": standard_files,
+            "context": {
+                "judgment_outputs": judgment_files,
+                "sample": "source/sample.md",
+            },
+            "output_path": output_rel,
+            "output_contract": "报告必须含一行：总体结论：达到 | 基本达到 | 未达到；发现硬伤须写明",
+            "resume_command": f"python3 workflow/runner.py --resume {self.run_id}",
+        }
+        self._write(
+            f"review_io/request_iter{index}.json",
+            json.dumps(request, ensure_ascii=False, indent=2),
+        )
+
+        template = (WORKFLOW_ROOT / "reviewers" / "instruction_template.md").read_text(
+            encoding="utf-8"
+        )
+        standard_block = (
+            "\n".join(f"   - runs/{self.run_id}/{p}" for p in standard_files)
+            or "   - （本范围暂无快照标准文件）"
+        )
+        context_block = (
+            "\n".join(f"   - runs/{self.run_id}/{p}" for p in judgment_files) or "   - （无）"
+        )
+        replacements = {
+            "{{ITERATION}}": str(index),
+            "{{SCOPE}}": scope,
+            "{{SCOPE_DESC}}": scope_desc,
+            "{{DRAFT_PATH}}": f"runs/{self.run_id}/drafts/current_article.md",
+            "{{STANDARD_FILES}}": standard_block,
+            "{{OUTPUT_PATH}}": f"runs/{self.run_id}/{output_rel}",
+            "{{CONTEXT_FILES}}": context_block,
+            "{{RESUME_CMD}}": f"python3 workflow/runner.py --resume {self.run_id}",
+            "{{RUN_ID}}": self.run_id,
+        }
+        instruction = template
+        for key, value in replacements.items():
+            instruction = instruction.replace(key, value)
+        self._write(f"review_io/INSTRUCTION_iter{index}.md", instruction)
+        self._write(f"review_io/scope_iter{index}.md", scope_desc + "\n")
+        self._write(
+            "HANDOFF.md",
+            f"# 等待外部审稿（第 {index} 轮）\n\n"
+            f"运行 `{self.run_id}` 已暂停，等待审稿报告。\n\n"
+            f"- 审稿范围：{scope}（标准源 `{dna_dir}/review_scope.md`）\n"
+            f"- 交接指令：`review_io/INSTRUCTION_iter{index}.md`\n"
+            f"- 机读请求：`review_io/request_iter{index}.json`\n"
+            f"- 报告应写到：`{output_rel}`\n"
+            f"- 续跑：`python3 workflow/runner.py --resume {self.run_id}`\n",
+        )
+
+    def _save_resume_state(self, index: int) -> None:
+        """落盘续跑所需的配置与暂停轮次。"""
+
+        config = self.config
+        state = {
+            "run_id": self.run_id,
+            "status": "awaiting_review",
+            "paused_index": index,
+            "config": {
+                "topic": config.topic,
+                "target_country": config.target_country,
+                "strategy_domain": config.strategy_domain,
+                "notebook_name": config.notebook_name,
+                "china_response_focus": config.china_response_focus,
+                "report_type": config.report_type,
+                "llm_provider": config.llm_provider,
+                "reuse_materials_run": config.reuse_materials_run,
+                "dry_run": config.dry_run,
+                "max_iterations": config.max_iterations,
+                "reviewer": config.reviewer,
+                "review_scope": config.review_scope,
+            },
+        }
+        self._write("run_state.json", json.dumps(state, ensure_ascii=False, indent=2))
+
+    def _emit_pause_notice(self, index: int) -> None:
+        print(
+            "\n".join(
+                [
+                    "",
+                    "==================== 等待外部审稿 ====================",
+                    f"运行 ID   : {self.run_id}",
+                    f"轮次      : 第 {index} 轮",
+                    f"审稿范围  : {self.config.review_scope}",
+                    f"交接指令  : runs/{self.run_id}/review_io/INSTRUCTION_iter{index}.md",
+                    f"报告写到  : runs/{self.run_id}/review_reports/review_iter{index}.md",
+                    f"续跑命令  : python3 workflow/runner.py --resume {self.run_id}",
+                    "====================================================",
+                ]
+            )
+        )
+
+    @classmethod
+    def resume_run(cls, run_id: str) -> "StrategicResponsePipeline":
+        """从 run_state.json 重建流程以续跑。"""
+
+        run_dir = cls._resolve_run_dir(run_id)
+        state_path = run_dir / "run_state.json"
+        if not state_path.is_file():
+            raise FileNotFoundError(f"找不到续跑状态文件: {state_path}")
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        pipeline = cls(Config(**state["config"]), run_id=run_id, resume=True)
+        pipeline._start_index = int(state.get("paused_index", 1))
+        return pipeline
 
     def _init_run(self) -> None:
         """创建运行目录、输入文件和临时任务列表。"""
@@ -124,6 +319,7 @@ class StrategicResponsePipeline:
             "style_dna_snapshot",
             "drafts",
             "review_reports",
+            "review_io",
             "logs",
         ]:
             (self.run_dir / folder).mkdir(parents=True, exist_ok=True)
@@ -134,6 +330,7 @@ class StrategicResponsePipeline:
             "input.yaml",
             "\n".join(
                 [
+                    f'report_type: "{self.config.report_type}"',
                     f'topic: "{self.config.topic}"',
                     f'target_country: "{self.config.target_country}"',
                     f'strategy_domain: "{self.config.strategy_domain}"',
@@ -168,8 +365,8 @@ class StrategicResponsePipeline:
     def _build_retrieval_prompts(self) -> None:
         """按六类通用检索任务拼装 NotebookLM 提示词。"""
 
-        template = self._read_workflow("prompts/retrieval.md")
-        for retrieval_type in RETRIEVAL_TYPES:
+        template = self._read_module("prompts/retrieval.md")
+        for retrieval_type in self.retrieval_types:
             prompt = self._fill_common(template)
             prompt += f"\n\n【本次检索任务】\n请执行 `{retrieval_type}` 对应的检索任务。\n"
             self._write(f"generated_prompts/retrieval_{retrieval_type}.md", prompt)
@@ -181,7 +378,7 @@ class StrategicResponsePipeline:
             self._copy_retrieval_outputs(self.config.reuse_materials_run)
             return
 
-        for retrieval_type in RETRIEVAL_TYPES:
+        for retrieval_type in self.retrieval_types:
             prompt_path = self.run_dir / "generated_prompts" / f"retrieval_{retrieval_type}.md"
             output = f"retrieval_outputs/{retrieval_type}.md"
             if self.config.dry_run:
@@ -195,9 +392,9 @@ class StrategicResponsePipeline:
 
         prompt = "\n\n".join(
             [
-                self._fill_common(self._read_workflow("prompts/task_redefinition.md")),
+                self._fill_common(self._read_module("prompts/task_redefinition.md")),
                 "【示例文章抽象模板】",
-                self._read_workflow("templates/article_template.md"),
+                self._read_module("templates/article_template.md"),
                 "【检索材料】",
                 self._all_retrieval_text(),
             ]
@@ -210,7 +407,7 @@ class StrategicResponsePipeline:
 
         prompt = "\n\n".join(
             [
-                self._fill_common(self._read_workflow("prompts/material_roles.md")),
+                self._fill_common(self._read_module("prompts/material_roles.md")),
                 "【任务重定义】",
                 self._read("judgment_outputs/task_redefinition.md"),
                 "【检索材料】",
@@ -225,7 +422,7 @@ class StrategicResponsePipeline:
 
         prompt = "\n\n".join(
             [
-                self._fill_common(self._read_workflow("prompts/pressure_judgment_mapping.md")),
+                self._fill_common(self._read_module("prompts/pressure_judgment_mapping.md")),
                 "【任务重定义】",
                 self._read("judgment_outputs/task_redefinition.md"),
                 "【材料角色分配】",
@@ -242,9 +439,9 @@ class StrategicResponsePipeline:
 
         prompt = "\n\n".join(
             [
-                self._fill_common(self._read_workflow("prompts/planning.md")),
+                self._fill_common(self._read_module("prompts/planning.md")),
                 "【示例文章抽象模板】",
-                self._read_workflow("templates/article_template.md"),
+                self._read_module("templates/article_template.md"),
                 "【任务重定义】",
                 self._read("judgment_outputs/task_redefinition.md"),
                 "【材料角色分配】",
@@ -263,7 +460,7 @@ class StrategicResponsePipeline:
 
         prompt = "\n\n".join(
             [
-                self._fill_common(self._read_workflow("prompts/suggestion_pool.md")),
+                self._fill_common(self._read_module("prompts/suggestion_pool.md")),
                 "【任务重定义】",
                 self._read("judgment_outputs/task_redefinition.md"),
                 "【材料角色分配】",
@@ -284,7 +481,7 @@ class StrategicResponsePipeline:
 
         prompt = "\n\n".join(
             [
-                self._fill_common(self._read_workflow("prompts/policy_priority.md")),
+                self._fill_common(self._read_module("prompts/policy_priority.md")),
                 "【任务重定义】",
                 self._read("judgment_outputs/task_redefinition.md"),
                 "【压力-判断映射】",
@@ -301,11 +498,11 @@ class StrategicResponsePipeline:
 
         prompt = "\n\n".join(
             [
-                self._fill_common(self._read_workflow("prompts/writing.md")),
+                self._fill_common(self._read_module("prompts/writing.md")),
                 "【政策研究文风 DNA】",
                 self._style_dna_text("writing"),
                 "【示例文章抽象模板】",
-                self._read_workflow("templates/article_template.md"),
+                self._read_module("templates/article_template.md"),
                 "【文章构思】",
                 self._read("planning_outputs/article_plan.md"),
                 "【任务重定义】",
@@ -331,13 +528,13 @@ class StrategicResponsePipeline:
 
         prompt = "\n\n".join(
             [
-                self._fill_common(self._read_workflow("prompts/review.md")),
+                self._fill_common(self._read_module("prompts/review.md")),
                 "【政策研究文风 DNA】",
                 self._style_dna_text("review"),
                 "【示例文章原文】",
-                self._read_workflow("source/sample.md"),
+                self._read_module("source/sample.md"),
                 "【示例文章抽象模板】",
-                self._read_workflow("templates/article_template.md"),
+                self._read_module("templates/article_template.md"),
                 "【任务重定义】",
                 self._read("judgment_outputs/task_redefinition.md"),
                 "【材料角色分配】",
@@ -358,11 +555,11 @@ class StrategicResponsePipeline:
 
         prompt = "\n\n".join(
             [
-                self._fill_common(self._read_workflow("prompts/revision.md")),
+                self._fill_common(self._read_module("prompts/revision.md")),
                 "【政策研究文风 DNA】",
                 self._style_dna_text("revision"),
                 "【示例文章抽象模板】",
-                self._read_workflow("templates/article_template.md"),
+                self._read_module("templates/article_template.md"),
                 "【文章构思】",
                 self._read("planning_outputs/article_plan.md"),
                 "【任务重定义】",
@@ -392,9 +589,9 @@ class StrategicResponsePipeline:
         prompt = f"""你是政策文章质量评估专家。请比较示例文章和生成文章。
 
 【比较维度】
-1. 结构是否匹配“目标国家战略分析 + 中国应对策略”。
+1. 结构是否匹配“{self.module_meta.get('label', self.config.report_type)}”体例。
 2. 表达是否接近示例文章的凝练政策文风。
-3. 深度是否体现战略判断，而不只是资料汇编。
+3. 深度是否体现明确的判断与分析，而不只是资料汇编。
 4. 建议是否具体、成体系、回应前文。
 5. 生成文章是否达到、接近或超过示例文章。
 6. 是否符合 style_dna 中“冷峻审慎、证据驱动、建设性建议”的政策研究声音。
@@ -404,7 +601,7 @@ class StrategicResponsePipeline:
 {self._style_dna_text("review")}
 
 【示例文章】
-{self._read_workflow("source/sample.md")}
+{self._read_module("source/sample.md")}
 
 【生成文章】
 {self._read("final_article_reviewed.md")}
@@ -452,6 +649,7 @@ class StrategicResponsePipeline:
             "run_log.md",
             "# 运行日志\n\n"
             f"- 运行 ID：{self.run_id}\n"
+            f"- 体例模块：{self.config.report_type}（{self.module_meta.get('label', '')}）\n"
             f"- 主题：{self.config.topic}\n"
             f"- 目标国家：{self.config.target_country}\n"
             f"- 战略领域：{self.config.strategy_domain}\n"
@@ -507,7 +705,7 @@ class StrategicResponsePipeline:
         """汇总全部检索材料。"""
 
         blocks = []
-        for retrieval_type in RETRIEVAL_TYPES:
+        for retrieval_type in self.retrieval_types:
             path = f"retrieval_outputs/{retrieval_type}.md"
             blocks.append(f"## {retrieval_type}\n\n{self._read(path)}")
         return "\n\n".join(blocks)
@@ -570,7 +768,7 @@ class StrategicResponsePipeline:
         if not source_dir.is_dir():
             raise FileNotFoundError(f"复用材料目录不存在: {source_dir}")
 
-        for retrieval_type in RETRIEVAL_TYPES:
+        for retrieval_type in self.retrieval_types:
             source = source_dir / f"{retrieval_type}.md"
             if not source.is_file():
                 raise FileNotFoundError(f"缺少复用材料文件: {source}")
@@ -662,8 +860,8 @@ class StrategicResponsePipeline:
     def _read(self, relative_path: str) -> str:
         return (self.run_dir / relative_path).read_text(encoding="utf-8")
 
-    def _read_workflow(self, relative_path: str) -> str:
-        return (WORKFLOW_ROOT / relative_path).read_text(encoding="utf-8")
+    def _read_module(self, relative_path: str) -> str:
+        return (self.module_root / relative_path).read_text(encoding="utf-8")
 
     def _write(self, relative_path: str, content: str) -> Path:
         path = self.run_dir / relative_path
@@ -682,12 +880,34 @@ class StrategicResponsePipeline:
 def parse_args() -> argparse.Namespace:
     """解析命令行参数。"""
 
-    parser = argparse.ArgumentParser(description="战略应对型政策文章工作流")
-    parser.add_argument("--topic", required=True)
-    parser.add_argument("--target-country", required=True)
-    parser.add_argument("--strategy-domain", required=True)
-    parser.add_argument("--notebook-name", required=True)
+    parser = argparse.ArgumentParser(description="政策文章工作流（多体例可载入）")
+    parser.add_argument(
+        "--resume",
+        metavar="RUN_ID",
+        help="续跑指定 run-id：从其暂停的审稿步继续（reviewer=handoff 用）",
+    )
+    parser.add_argument("--topic")
+    parser.add_argument("--target-country")
+    parser.add_argument("--strategy-domain")
+    parser.add_argument("--notebook-name")
     parser.add_argument("--china-response-focus", default="中国应对策略")
+    parser.add_argument(
+        "--reviewer",
+        default="inline",
+        choices=["inline", "handoff"],
+        help="审稿方式：inline=同后端 LLM 自审（默认，原行为）；handoff=暂停交外部 agent 审稿后 --resume 续跑",
+    )
+    parser.add_argument(
+        "--review-scope",
+        default="style_and_expression",
+        choices=["style_and_expression", "reasoning_compliance"],
+        help="handoff 审稿范围；默认只审文风与表述",
+    )
+    parser.add_argument(
+        "--report-type",
+        default="strategic_response",
+        help="体例模块，对应 report_modules/ 下的目录名；当前可用：strategic_response",
+    )
     parser.add_argument(
         "--llm-provider",
         default="deepseek",
@@ -707,16 +927,33 @@ def main() -> int:
     """启动流程。"""
 
     args = parse_args()
+
+    if args.resume:
+        StrategicResponsePipeline.resume_run(args.resume).run()
+        return 0
+
+    missing = [
+        name
+        for name in ("topic", "target_country", "strategy_domain", "notebook_name")
+        if not getattr(args, name)
+    ]
+    if missing:
+        flags = ", ".join("--" + name.replace("_", "-") for name in missing)
+        raise SystemExit(f"缺少必填参数: {flags}（或用 --resume <run-id> 续跑）")
+
     config = Config(
         topic=args.topic,
         target_country=args.target_country,
         strategy_domain=args.strategy_domain,
         notebook_name=args.notebook_name,
         china_response_focus=args.china_response_focus,
+        report_type=args.report_type,
         llm_provider=args.llm_provider,
         reuse_materials_run=args.reuse_materials_run,
         dry_run=args.dry_run,
         max_iterations=max(1, args.max_iterations),
+        reviewer=args.reviewer,
+        review_scope=args.review_scope,
     )
     StrategicResponsePipeline(config).run()
     return 0
