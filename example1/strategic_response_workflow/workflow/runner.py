@@ -161,9 +161,12 @@ class StrategicResponsePipeline:
 
     # scope -> (拥有该范围审查标准的 DNA 目录, 该 DNA 在 run 内的快照子目录)
     # 触发哪个范围，就读哪个 DNA 的 review_scope.md 作为“审什么”。
+    # scope -> (审查标准文档相对路径, run 内快照子目录或 None)
+    # 触发哪个范围，就读哪份标准文档作为"审什么"。
     _SCOPE_SOURCES = {
-        "style_and_expression": ("style_dna", "style_dna_snapshot"),
-        "reasoning_compliance": ("reasoning_dna", "reasoning_dna_snapshot"),
+        "style_and_expression": ("style_dna/review_scope.md", "style_dna_snapshot"),
+        "reasoning_compliance": ("reasoning_dna/review_scope.md", "reasoning_dna_snapshot"),
+        "precedent_check": ("reviewers/precedent_check_scope.md", None),
     }
 
     def _existing_relpaths(self, subdir: str) -> list[str]:
@@ -180,16 +183,16 @@ class StrategicResponsePipeline:
         """
 
         scope = self.config.review_scope
-        dna_dir, snapshot_subdir = self._SCOPE_SOURCES.get(
-            scope, ("style_dna", "style_dna_snapshot")
+        scope_rel, snapshot_subdir = self._SCOPE_SOURCES.get(
+            scope, ("style_dna/review_scope.md", "style_dna_snapshot")
         )
-        scope_src = WORKFLOW_ROOT / dna_dir / "review_scope.md"
+        scope_src = WORKFLOW_ROOT / scope_rel
         scope_desc = (
             scope_src.read_text(encoding="utf-8").strip()
             if scope_src.is_file()
-            else f"（未找到 {dna_dir}/review_scope.md，按 scope 名「{scope}」审查）"
+            else f"（未找到 {scope_rel}，按 scope 名「{scope}」审查）"
         )
-        standard_files = self._existing_relpaths(snapshot_subdir)
+        standard_files = self._existing_relpaths(snapshot_subdir) if snapshot_subdir else []
         judgment_files = self._existing_relpaths("judgment_outputs")
         output_rel = f"review_reports/review_iter{index}.md"
 
@@ -199,7 +202,7 @@ class StrategicResponsePipeline:
             "label": self.module_meta.get("label", ""),
             "iteration": index,
             "scope": scope,
-            "scope_source": f"{dna_dir}/review_scope.md",
+            "scope_source": scope_rel,
             "draft": "drafts/current_article.md",
             "standard_files": standard_files,
             "context": {
@@ -245,7 +248,7 @@ class StrategicResponsePipeline:
             "HANDOFF.md",
             f"# 等待外部审稿（第 {index} 轮）\n\n"
             f"运行 `{self.run_id}` 已暂停，等待审稿报告。\n\n"
-            f"- 审稿范围：{scope}（标准源 `{dna_dir}/review_scope.md`）\n"
+            f"- 审稿范围：{scope}（标准源 `{scope_rel}`）\n"
             f"- 交接指令：`review_io/INSTRUCTION_iter{index}.md`\n"
             f"- 机读请求：`review_io/request_iter{index}.json`\n"
             f"- 报告应写到：`{output_rel}`\n"
@@ -971,7 +974,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--review-scope",
         default="style_and_expression",
-        choices=["style_and_expression", "reasoning_compliance"],
+        choices=["style_and_expression", "reasoning_compliance", "precedent_check"],
         help="handoff 审稿范围；默认只审文风与表述",
     )
     modules_root = WORKFLOW_ROOT / "report_modules"
