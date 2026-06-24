@@ -11,3 +11,11 @@ logs/
 style_dna/raw/
 style_dna/processed/
 style_dna/wiki/_distill_raw_output.md
+
+# 金样本为原始参考素材，不进仓库
+gold_samples/
+
+# 构建过程中的人类参考素材拷贝，不进仓库
+multiagent_build/route_a/result_gate/article_*.md
+multiagent_build/route_a/result_gate/_KEY*
+report_modules/trend_review/source/gold_samples/
