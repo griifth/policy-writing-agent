@@ -27,8 +27,15 @@
 - [x] 最终冒烟：strategic/experience/trend_review 三模块装刀后 dry-run 全 16/16 步过、无 traceback
 - [x] 敏感人类素材拷贝 gitignore；提交
 
+## 补做 · trend 体例 reasoning_dna 刀（路 D，Workflow w23cdjusz）
+- [x] signal / driver / stage / uncertainty 四刀 —— **PASS 第1轮，分 88**
+- 注入：map_pressure_judgment[signal,driver,stage] + plan_article[stage,uncertainty]，dry-run 确认接通
+- **至此三体例 reasoning_dna 齐整**：strategic(intent/threat/hedge)、experience(cause/efficacy)、trend(signal/driver/stage/uncertainty)
+- 记录见 route_d/round_1/{dev,review,decision}.md；非阻断锐化 3 条留待后续
+
 ---
 
 ## 进度日志
 - 2026-06-24　P0/P1/P2 完成并验证；阶段1 三路 Workflow 全第1轮过线（A88/B92/C88）；
   路A结果门 PASS（新版3/3排第1，压过旧版+人类）；三模块冒烟全过；落盘提交。
+- 2026-06-24　补 trend 体例四刀（路 D，PASS 88）；三体例 reasoning_dna 齐整。

@@ -32,5 +32,13 @@ retrieval_types:
   - response_evidence        # 支撑“对我国对策”的中国制度载体、试点与可行性依据
 
 # reasoning_dna 注入映射：step(任务 id) -> 刀（report_modules/trend_review/reasoning_dna/<刀>.md）
-# 刀文件缺失时该步零注入（gated）。本批先建模块、不配刀，映射留空待后续轮次补刀。
-reasoning_dna_injection: {}
+# 刀文件缺失时该步零注入（gated）。
+# 动向体例四刀（route_d/round_1 蒸馏）：
+#   signal      信号刀——真趋势 vs 个案/噪音（多国共现/数据/持续性）
+#   driver      成因刀——趋势被什么驱动、动力是否持续
+#   stage       阶段刀（最关键）——中国处在哪一步 → 跟进/补配套/预警刹车
+#   uncertainty 不确定性刀——研判把握度与变向/反转条件
+# 挂载：信号/成因/阶段挂趋势研判核心步 map_pressure_judgment；阶段/不确定性挂落笔步 plan_article。
+reasoning_dna_injection:
+  map_pressure_judgment: [signal, driver, stage]
+  plan_article: [stage, uncertainty]
