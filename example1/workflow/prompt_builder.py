@@ -52,6 +52,27 @@ WRITING_OUTPUT_CONTRACT = """只输出可直接入稿的正文内容。
 如果材料缺失，不要编造；可以不写该内容，或在必要处标注“材料不足”。"""
 
 
+REVIEW_OUTPUT_CONTRACT = """只输出审查报告。
+不要输出修改后的全文。
+不要输出思考过程。
+不要输出 JSON。
+不要处理引用编号、参考文献格式、脚注尾注格式、文件来源格式等引用类问题。
+审查重点必须放在全文内容、章节结构、比较逻辑、论证链条、政策建议落点和政策研究文体上。
+指出问题时尽量定位到章节、标题或段落，并说明为什么会影响报告质量。
+如果未发现明显问题，也要说明剩余风险。"""
+
+
+REVISION_OUTPUT_CONTRACT = """只输出修改后的完整报告正文。
+不要输出修改说明。
+不要输出审查意见。
+不要输出思考过程。
+不要输出 JSON。
+不得新增未经原文或 NotebookLM 检索材料支撑的国外政策事实。
+不得处理或改写引用编号、参考文献格式、脚注尾注格式、文件来源格式等引用类问题。
+可以调整标题、小标题、段落顺序、过渡句、总起句和政策建议表达。
+修改目标是让全文结构更清晰、论证链条更完整、政策建议更能体现“从国际经验中来、到中国问题中去”。"""
+
+
 @dataclass(frozen=True)
 class PromptSpec:
     """单个工程化提示词任务的配置。"""
@@ -353,6 +374,37 @@ def _chapter3_transform(text: str, values: Mapping[str, str]) -> str:
     return replace_topic_placeholders(text, topic=_require_value(values, "topic"))
 
 
+def _identity_transform(text: str, values: Mapping[str, str]) -> str:
+    """只做主题占位替换，适用于本项目自有模板。"""
+
+    return replace_topic_placeholders(text, topic=_require_value(values, "topic"))
+
+
+def _input_fulltext_review(values: Mapping[str, str]) -> str:
+    """全文内容结构审查需要读取完整原文和固定审查模板。"""
+
+    return _input_block(
+        [
+            ("报告主题", _require_value(values, "topic")),
+            ("审查意见模板", _require_value(values, "review_template")),
+            ("待审查全文", _require_value(values, "full_report")),
+        ]
+    )
+
+
+def _input_fulltext_revision(values: Mapping[str, str]) -> str:
+    """全文修改需要同时读取原文、固定模板和本次审查报告。"""
+
+    return _input_block(
+        [
+            ("报告主题", _require_value(values, "topic")),
+            ("审查意见模板", _require_value(values, "review_template")),
+            ("本次审查报告", _require_value(values, "review_report")),
+            ("待修改全文", _require_value(values, "full_report")),
+        ]
+    )
+
+
 PROMPT_SPECS: dict[str, PromptSpec] = {
     "retrieval.ch1_1a": PromptSpec(
         prompt_type="retrieval",
@@ -450,6 +502,22 @@ PROMPT_SPECS: dict[str, PromptSpec] = {
         original_transform=_chapter3_transform,
         default_filename="writing_chapter3_body.md",
     ),
+    "review.fulltext_content_structure": PromptSpec(
+        prompt_type="review",
+        original_path="workflow/prompts/fulltext_review.md",
+        input_builder=_input_fulltext_review,
+        output_contract=REVIEW_OUTPUT_CONTRACT,
+        original_transform=_identity_transform,
+        default_filename="review_fulltext_content_structure.md",
+    ),
+    "revision.fulltext_content_structure": PromptSpec(
+        prompt_type="revision",
+        original_path="workflow/prompts/fulltext_rewrite.md",
+        input_builder=_input_fulltext_revision,
+        output_contract=REVISION_OUTPUT_CONTRACT,
+        original_transform=_identity_transform,
+        default_filename="revision_fulltext_content_structure.md",
+    ),
 }
 
 
@@ -468,6 +536,8 @@ def build_engineered_prompt(prompt_id: str, **kwargs: str) -> str:
     - retrieval.ch1_1a / retrieval.ch1_2a / retrieval.ch1_3b / retrieval.chapter2_materials
     - planning.ch1_3a / planning.chapter2_topic / planning.chapter2_dimensions
     - writing.ch1_1b / writing.ch1_2b / writing.ch1_3c / writing.chapter2_body / writing.chapter3_body
+    - review.fulltext_content_structure
+    - revision.fulltext_content_structure
     """
 
     try:
@@ -507,6 +577,20 @@ def build_writing_prompt(prompt_id: str, **kwargs: str) -> str:
     """生成写作类工程化提示词。prompt_id 可省略 writing. 前缀。"""
 
     normalized = prompt_id if prompt_id.startswith("writing.") else f"writing.{prompt_id}"
+    return build_engineered_prompt(normalized, **kwargs)
+
+
+def build_review_prompt(prompt_id: str, **kwargs: str) -> str:
+    """生成审查类工程化提示词。prompt_id 可省略 review. 前缀。"""
+
+    normalized = prompt_id if prompt_id.startswith("review.") else f"review.{prompt_id}"
+    return build_engineered_prompt(normalized, **kwargs)
+
+
+def build_revision_prompt(prompt_id: str, **kwargs: str) -> str:
+    """生成全文修改类工程化提示词。prompt_id 可省略 revision. 前缀。"""
+
+    normalized = prompt_id if prompt_id.startswith("revision.") else f"revision.{prompt_id}"
     return build_engineered_prompt(normalized, **kwargs)
 
 
@@ -565,6 +649,8 @@ __all__ = [
     "build_engineered_prompt",
     "build_planning_prompt",
     "build_retrieval_prompt",
+    "build_review_prompt",
+    "build_revision_prompt",
     "build_writing_prompt",
     "list_prompt_ids",
     "read_original_prompt",

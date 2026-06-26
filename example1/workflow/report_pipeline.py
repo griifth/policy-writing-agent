@@ -57,6 +57,7 @@ class ReportPipeline:
         self.deepseek = DeepSeekClient()
         if resume_run:
             self._migrate_task_state_for_chapter3()
+            self._migrate_task_state_for_full_review()
         self.notebook_id = self._load_notebook_id_from_state() if resume_run else ""
 
     def run(self) -> None:
@@ -97,6 +98,8 @@ class ReportPipeline:
             self._run_task("ch3.write", self._write_ch3)
             self._run_task("final.assemble", self._assemble_final)
             self._run_task("final.review", self._review_final)
+            self._run_task("full.review", self._review_full_content_structure)
+            self._run_task("full.rewrite", self._rewrite_full_report)
         finally:
             self._run_task(
                 "run.archive_log",
@@ -388,6 +391,31 @@ class ReportPipeline:
         self._save_generated_prompt("final_review.md", prompt)
         self._ask_deepseek(prompt, "review_reports/final_review.md")
 
+    def _review_full_content_structure(self) -> None:
+        """基于固定模板审查全文内容与结构。"""
+
+        prompt = prompt_builder.build_review_prompt(
+            "fulltext_content_structure",
+            topic=self.config.topic,
+            review_template=self._read_review_template(),
+            full_report=self._read("final_report.md"),
+        )
+        self._save_generated_prompt("fulltext_content_structure_review.md", prompt)
+        self._ask_deepseek(prompt, "review_reports/fulltext_content_structure_review.md")
+
+    def _rewrite_full_report(self) -> None:
+        """根据全文审查意见生成修改后的完整报告。"""
+
+        prompt = prompt_builder.build_revision_prompt(
+            "fulltext_content_structure",
+            topic=self.config.topic,
+            review_template=self._read_review_template(),
+            review_report=self._read("review_reports/fulltext_content_structure_review.md"),
+            full_report=self._read("final_report.md"),
+        )
+        self._save_generated_prompt("fulltext_content_structure_rewrite.md", prompt)
+        self._ask_deepseek(prompt, "final_report_reviewed.md")
+
     def _archive_log(self) -> None:
         """归档运行日志。"""
         state = task_state.load_task_state(self.run_dir)
@@ -397,7 +425,9 @@ class ReportPipeline:
             else "done"
         )
         candidate_outputs = [
+            "final_report_reviewed.md",
             "final_report.md",
+            "review_reports/fulltext_content_structure_review.md",
             "chapter_drafts/chapter1.md",
             "chapter_drafts/chapter2.md",
             "chapter_drafts/chapter3.md",
@@ -458,6 +488,13 @@ class ReportPipeline:
         """写入运行目录内文本。"""
         return file_store.write_markdown(self.run_dir / relative_path, content)
 
+    def _read_review_template(self) -> str:
+        """读取固定的全文内容结构审查模板。"""
+
+        return prompt_builder.read_original_prompt(
+            "workflow/review_templates/content_structure_review.md"
+        )
+
     def _refresh_task_state_notebook_id(self) -> None:
         """Notebook ID 解析后，更新 task_state.md 头部信息。"""
         state = task_state.load_task_state(self.run_dir)
@@ -468,6 +505,101 @@ class ReportPipeline:
             notebook_id=self.notebook_id,
             current_status=state.current_status,
             tasks=state.tasks,
+            error_details=state.error_details,
+        )
+        file_store.write_markdown(
+            self.run_dir / task_state.TASK_STATE_FILENAME,
+            task_state.render_task_state(updated),
+        )
+
+    def _migrate_task_state_for_full_review(self) -> None:
+        """恢复旧运行时补齐全文内容结构审查与修改任务。
+
+        旧运行没有 `full.review` 和 `full.rewrite`。补齐后把归档任务放到最后，
+        让 Codex 可以继续执行新增审核链条并重新生成运行日志。
+        """
+
+        state = task_state.load_task_state(self.run_dir)
+        task_ids = {item.task_id for item in state.tasks}
+        if "full.review" in task_ids and "full.rewrite" in task_ids:
+            return
+
+        review_done = (
+            self.run_dir / "review_reports" / "fulltext_content_structure_review.md"
+        ).exists()
+        rewrite_done = (self.run_dir / "final_report_reviewed.md").exists()
+        inserted = False
+        updated_tasks: list[task_state.Task] = []
+
+        def full_review_task(order: int) -> task_state.Task:
+            """构造全文内容结构审查任务。"""
+
+            return task_state.Task(
+                order,
+                "full.review",
+                "全文内容结构审查",
+                "审查",
+                "DeepSeek v4 Pro",
+                status="done" if review_done else "pending",
+                input="final_report.md + 审查意见模板",
+                output="review_reports/fulltext_content_structure_review.md",
+            )
+
+        def full_rewrite_task(order: int) -> task_state.Task:
+            """构造全文内容结构修改任务。"""
+
+            return task_state.Task(
+                order,
+                "full.rewrite",
+                "全文内容结构修改",
+                "写作/修改",
+                "DeepSeek v4 Pro",
+                status="done" if rewrite_done else "pending",
+                input="final_report.md + 全文审查报告",
+                output="final_report_reviewed.md",
+            )
+
+        for item in state.tasks:
+            if item.task_id == "run.archive_log" and not inserted:
+                next_order = item.order
+                if "full.review" not in task_ids:
+                    updated_tasks.append(full_review_task(next_order))
+                    next_order += 1
+                if "full.rewrite" not in task_ids:
+                    updated_tasks.append(full_rewrite_task(next_order))
+                    next_order += 1
+                updated_tasks.append(
+                    task_state.Task(
+                        next_order,
+                        item.task_id,
+                        item.module,
+                        item.function,
+                        item.actor,
+                        status="pending",
+                        input=item.input,
+                        output=item.output,
+                    )
+                )
+                inserted = True
+            else:
+                updated_tasks.append(item)
+
+        if not inserted:
+            max_order = max((item.order for item in updated_tasks), default=0)
+            if "full.review" not in task_ids:
+                max_order += 1
+                updated_tasks.append(full_review_task(max_order))
+            if "full.rewrite" not in task_ids:
+                max_order += 1
+                updated_tasks.append(full_rewrite_task(max_order))
+
+        updated = task_state.TaskState(
+            run_id=state.run_id,
+            topic=state.topic,
+            notebook_name=state.notebook_name,
+            notebook_id=state.notebook_id,
+            current_status="running",
+            tasks=tuple(updated_tasks),
             error_details=state.error_details,
         )
         file_store.write_markdown(
@@ -676,6 +808,8 @@ class ReportPipeline:
             "ch3.write": "chapter_drafts/chapter3.md",
             "final.assemble": "final_report.md",
             "final.review": "review_reports/final_review.md",
+            "full.review": "review_reports/fulltext_content_structure_review.md",
+            "full.rewrite": "final_report_reviewed.md",
             "run.archive_log": "run_log.md",
         }
         return outputs.get(task_id, "")

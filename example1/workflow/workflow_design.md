@@ -37,9 +37,11 @@ flowchart TD
   E --> G["第二章：DeepSeek 定题构思写作 + NotebookLM 检索"]
   F --> H["材料依据与质量审查"]
   G --> H
-  H --> I["第三章：占位，读取前两章成文"]
+  H --> I["第三章：政策建议写作，读取前两章成文"]
   I --> J["全报告组装"]
-  J --> K["最终审查与输出"]
+  J --> K["最终材料依据审查"]
+  K --> L["全文内容结构审查"]
+  L --> M["按审查意见修改全文并输出"]
 ```
 
 核心原则：
@@ -113,6 +115,8 @@ DeepSeek v4 Pro API 负责以下模块：
 - 第二章目的层定题：构思。
 - 第二章凝练维度与成文：构思、写作。
 - 第一章、第二章和前两章统一审查：审查。
+- 全文内容结构审查：审查。
+- 按全文审查意见修改完整报告：写作/修改。
 
 DeepSeek 调用约束：
 
@@ -147,6 +151,9 @@ DeepSeek 调用约束：
 | 第二章-目的层定题 | `多政策的国际比较报告/第二章提示词/第二部分定题.md` | `extracted_materials/chapter2_topic.md` |
 | 第二章-资料铺料 | `多政策的国际比较报告/第二章提示词/第二章所需资料提示词.md` | `retrieval_outputs/chapter2_materials.md` |
 | 第二章-凝练维度与成文 | `多政策的国际比较报告/第二章提示词/第二章凝练维度写作模版.md` | `chapter_drafts/chapter2.md` |
+| 第三章-政策建议写作 | `workflow/prompts/ch3_writing.md` | `chapter_drafts/chapter3.md` |
+| 全文内容结构审查 | `workflow/prompts/fulltext_review.md` + `workflow/review_templates/content_structure_review.md` | `review_reports/fulltext_content_structure_review.md` |
+| 全文内容结构修改 | `workflow/prompts/fulltext_rewrite.md` + 全文审查报告 | `final_report_reviewed.md` |
 
 ## 8. 阶段设计
 
@@ -258,11 +265,11 @@ DeepSeek 调用约束：
 
 - 是否需要补充中国现状与差距的专门材料输入。
 
-### 8.6 审查阶段
+### 8.6 审查与全文修改阶段
 
-每章生成后都执行审查。
+每章生成后先执行材料依据审查。完整报告组装后，再执行全文内容结构审查和全文修改。
 
-审查项目：
+材料依据审查项目：
 
 - 文件名、机构名、年份是否能在检索结果中找到。
 - 具体政策举措是否有来源支撑。
@@ -272,12 +279,23 @@ DeepSeek 调用约束：
 - 维度是否由材料归纳而来，而不是预设套用。
 - 中文报告语体是否统一。
 
+全文内容结构审查项目：
+
+- 全文主题是否稳定。
+- 第一章、第二章、第三章是否各自承担清楚功能。
+- 比较维度是否同层、可比、有判断。
+- 段落之间是否存在跳跃、重复或断裂。
+- 第三章政策建议是否回应前文并落到中国问题。
+- 总结段、小结段是否有基于材料的提炼。
+- 语言是否庄重凝练，避免明显 AI 味和空泛表达。
+
 输出：
 
 - `review_reports/chapter1_review.md`
 - `review_reports/chapter2_review.md`
-- `review_reports/chapter3_review.md`
 - `review_reports/final_review.md`
+- `review_reports/fulltext_content_structure_review.md`
+- `final_report_reviewed.md`
 
 ## 9. 材料依据记录
 
@@ -316,13 +334,13 @@ flowchart LR
   C --> D["生成提示词副本"]
   D --> E["NotebookLM 完成 1A/2A/3B/第二章铺料检索"]
   E --> F["DeepSeek 完成 3A/1B/2B/3C/第二章构思写作"]
-  F --> G["DeepSeek 完成证据审查"]
-  G --> H["输出 final_report.md 并归档 run_log.md"]
+  F --> G["DeepSeek 完成证据审查和第三章写作"]
+  G --> H["DeepSeek 完成全文内容结构审查与修改"]
+  H --> I["输出 final_report_reviewed.md 并归档 run_log.md"]
 ```
 
 第一版可以暂缓：
 
-- 第三章自动成文。
 - 复杂的多轮修订。
 - 可视化控制台。
 - 批量主题运行。

@@ -70,7 +70,9 @@ DEFAULT_TASKS: tuple[Task, ...] = (
     Task(17, "ch3.write", "第三章政策建议写作", "写作", "DeepSeek v4 Pro", input="chapter1.md + chapter2.md", output="chapter_drafts/chapter3.md"),
     Task(18, "final.assemble", "报告组装", "编排", "Codex", input="chapter_drafts/", output="final_report.md"),
     Task(19, "final.review", "最终审查", "审查", "DeepSeek v4 Pro", input="final_report.md + 检索材料", output="review_reports/final_review.md"),
-    Task(20, "run.archive_log", "归档运行日志", "编排", "Codex", input="task_state.md", output="run_log.md"),
+    Task(20, "full.review", "全文内容结构审查", "审查", "DeepSeek v4 Pro", input="final_report.md + 审查意见模板", output="review_reports/fulltext_content_structure_review.md"),
+    Task(21, "full.rewrite", "全文内容结构修改", "写作/修改", "DeepSeek v4 Pro", input="final_report.md + 全文审查报告", output="final_report_reviewed.md"),
+    Task(22, "run.archive_log", "归档运行日志", "编排", "Codex", input="task_state.md", output="run_log.md"),
 )
 
 

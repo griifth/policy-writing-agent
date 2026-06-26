@@ -60,6 +60,7 @@ class Config:
     max_iterations: int = 2
     reviewer: str = "inline"
     review_scope: str = "style_and_expression"
+    style_subtype: str = "auto"
 
 
 class ReviewHandoff(Exception):
@@ -164,7 +165,7 @@ class StrategicResponsePipeline:
     # scope -> (审查标准文档相对路径, run 内快照子目录或 None)
     # 触发哪个范围，就读哪份标准文档作为"审什么"。
     _SCOPE_SOURCES = {
-        "style_and_expression": ("style_dna/review_scope.md", "style_dna_snapshot"),
+        "style_and_expression": ("policy_style_dna/review_scope.md", "policy_style_dna_snapshot"),
         "reasoning_compliance": ("reasoning_dna/review_scope.md", "reasoning_dna_snapshot"),
         "precedent_check": ("reviewers/precedent_check_scope.md", None),
     }
@@ -184,7 +185,7 @@ class StrategicResponsePipeline:
 
         scope = self.config.review_scope
         scope_rel, snapshot_subdir = self._SCOPE_SOURCES.get(
-            scope, ("style_dna/review_scope.md", "style_dna_snapshot")
+            scope, ("policy_style_dna/review_scope.md", "policy_style_dna_snapshot")
         )
         scope_src = WORKFLOW_ROOT / scope_rel
         scope_desc = (
@@ -319,7 +320,7 @@ class StrategicResponsePipeline:
             "judgment_outputs",
             "planning_outputs",
             "suggestion_outputs",
-            "style_dna_snapshot",
+            "policy_style_dna_snapshot",
             "drafts",
             "review_reports",
             "review_io",
@@ -327,7 +328,7 @@ class StrategicResponsePipeline:
         ]:
             (self.run_dir / folder).mkdir(parents=True, exist_ok=True)
 
-        self._copy_style_dna_snapshot()
+        self._copy_policy_style_dna_snapshot()
         self._copy_reasoning_dna_snapshot()
         self._copy_institution_profile_snapshot()
 
@@ -515,7 +516,7 @@ class StrategicResponsePipeline:
             [
                 self._fill_common(self._read_module("prompts/writing.md")),
                 "【政策研究文风 DNA】",
-                self._style_dna_text("writing"),
+                self._policy_style_dna_text("writing"),
                 "【示例文章抽象模板】",
                 self._read_module("templates/article_template.md"),
                 "【文章构思】",
@@ -546,7 +547,7 @@ class StrategicResponsePipeline:
             [
                 self._fill_common(self._read_module("prompts/review.md")),
                 "【政策研究文风 DNA】",
-                self._style_dna_text("review"),
+                self._policy_style_dna_text("review"),
                 "【示例文章原文】",
                 self._read_module("source/sample.md"),
                 "【示例文章抽象模板】",
@@ -573,7 +574,7 @@ class StrategicResponsePipeline:
             [
                 self._fill_common(self._read_module("prompts/revision.md")),
                 "【政策研究文风 DNA】",
-                self._style_dna_text("revision"),
+                self._policy_style_dna_text("revision"),
                 "【示例文章抽象模板】",
                 self._read_module("templates/article_template.md"),
                 "【文章构思】",
@@ -610,11 +611,11 @@ class StrategicResponsePipeline:
 3. 深度是否体现明确的判断与分析，而不只是资料汇编。
 4. 建议是否具体、成体系、回应前文。
 5. 生成文章是否达到、接近或超过示例文章。
-6. 是否符合 style_dna 中“冷峻审慎、证据驱动、建设性建议”的政策研究声音。
-7. 是否存在 style_dna 明确禁止的 AI 腔、过程信息外露、建议悬空或过度学术化。
+6. 是否符合 policy_style_dna 中“冷峻审慎、证据驱动、建设性建议”的政策研究声音。
+7. 是否存在 policy_style_dna 明确禁止的 AI 腔、过程信息外露、建议悬空或过度学术化。
 
 【政策研究文风 DNA】
-{self._style_dna_text("review")}
+{self._policy_style_dna_text("review")}
 
 【示例文章】
 {self._read_module("source/sample.md")}
@@ -641,12 +642,12 @@ class StrategicResponsePipeline:
         """归档运行日志。"""
 
         outputs = [
-            "style_dna_snapshot/voice.md",
-            "style_dna_snapshot/structure.md",
-            "style_dna_snapshot/sentence.md",
-            "style_dna_snapshot/forbidden.md",
-            "style_dna_snapshot/recommendation.md",
-            "style_dna_snapshot/self_check.md",
+            "policy_style_dna_snapshot/voice.md",
+            "policy_style_dna_snapshot/structure.md",
+            "policy_style_dna_snapshot/sentence.md",
+            "policy_style_dna_snapshot/forbidden.md",
+            "policy_style_dna_snapshot/recommendation.md",
+            "policy_style_dna_snapshot/self_check.md",
             "judgment_outputs/task_redefinition.md",
             "judgment_outputs/material_roles.md",
             "judgment_outputs/pressure_judgment_mapping.md",
@@ -726,9 +727,9 @@ class StrategicResponsePipeline:
             blocks.append(f"## {retrieval_type}\n\n{self._read(path)}")
         return "\n\n".join(blocks)
 
-    def _copy_style_dna_snapshot(self) -> None:
+    def _copy_policy_style_dna_snapshot(self) -> None:
         """把本次使用的文风规则复制到运行目录，便于复查。"""
-        source_dir = WORKFLOW_ROOT / "style_dna" / "wiki"
+        source_dir = WORKFLOW_ROOT / "policy_style_dna" / "wiki"
         if not source_dir.is_dir():
             return
         for name in [
@@ -738,13 +739,30 @@ class StrategicResponsePipeline:
             "forbidden.md",
             "recommendation.md",
             "self_check.md",
+            f"subtype_{self._resolve_style_subtype()}.md",
         ]:
             source = source_dir / name
             if source.is_file():
-                shutil.copyfile(source, self.run_dir / "style_dna_snapshot" / name)
+                shutil.copyfile(source, self.run_dir / "policy_style_dna_snapshot" / name)
 
-    def _style_dna_text(self, mode: str) -> str:
-        """读取写作、审查、修改阶段需要的文风规则。"""
+    def _resolve_style_subtype(self) -> str:
+        """决定本次注入哪一支 policy_style_dna 子型。
+
+        a=战略建议/预警（有镜像建议章、双声部、稳慎兜底）；
+        b=机制/趋势综述（维度横切、合法无建议章/无对华层/单声部）。
+        显式 --style-subtype a|b 覆盖；否则按 report_type 自动路由。
+        """
+        explicit = getattr(self.config, "style_subtype", "auto")
+        if explicit in ("a", "b"):
+            return explicit
+        return {
+            "strategic_response": "a",
+            "experience_response": "a",
+            "trend_review": "b",
+        }.get(self.config.report_type, "a")
+
+    def _policy_style_dna_text(self, mode: str) -> str:
+        """读取写作、审查、修改阶段需要的文风规则（顶层通则 + 子型分支）。"""
         mode_to_files = {
             "writing": [
                 "voice.md",
@@ -768,14 +786,15 @@ class StrategicResponsePipeline:
                 "self_check.md",
             ],
         }
-        files = mode_to_files.get(mode, mode_to_files["writing"])
+        files = list(mode_to_files.get(mode, mode_to_files["writing"]))
+        files.append(f"subtype_{self._resolve_style_subtype()}.md")
         blocks = []
         for name in files:
-            path = WORKFLOW_ROOT / "style_dna" / "wiki" / name
+            path = WORKFLOW_ROOT / "policy_style_dna" / "wiki" / name
             if path.is_file():
                 blocks.append(f"## {name}\n\n{path.read_text(encoding='utf-8')}")
         if not blocks:
-            return "未发现 style_dna/wiki 规则，本次按基础提示词运行。"
+            return "未发现 policy_style_dna/wiki 规则，本次按基础提示词运行。"
         return "\n\n".join(blocks)
 
     def _reasoning_dna_text(self, step_id: str) -> str:
@@ -999,6 +1018,12 @@ def parse_args() -> argparse.Namespace:
         "--reuse-materials-run",
         help="复用指定 run-id 的 retrieval_outputs，跳过 NotebookLM 重新检索",
     )
+    parser.add_argument(
+        "--style-subtype",
+        default="auto",
+        choices=["auto", "a", "b"],
+        help="policy_style_dna 子型路由：auto=按 report_type 自动（strategic_response/experience_response→a 战略建议，trend_review→b 机制综述）；a/b=强制覆盖",
+    )
     return parser.parse_args()
 
 
@@ -1033,6 +1058,7 @@ def main() -> int:
         max_iterations=max(1, args.max_iterations),
         reviewer=args.reviewer,
         review_scope=args.review_scope,
+        style_subtype=args.style_subtype,
     )
     StrategicResponsePipeline(config).run()
     return 0
