@@ -7,6 +7,7 @@ NotebookLM/DeepSeek、传输对应文件并落盘。
 from __future__ import annotations
 
 import re
+import shutil
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,6 +19,8 @@ import task_state
 from deepseek_client import DeepSeekClient
 from notebooklm_client import NotebookLMClient
 
+WORKFLOW_DIR = Path(__file__).resolve().parent
+
 
 @dataclass(frozen=True)
 class PipelineConfig:
@@ -28,6 +31,7 @@ class PipelineConfig:
     runs_dir: Path
     dry_run: bool = False
     resume_run: str | None = None
+    reuse_materials_run: str | None = None
 
 
 class ReportPipeline:
@@ -40,6 +44,7 @@ class ReportPipeline:
         runs_dir: Path,
         dry_run: bool = False,
         resume_run: str | None = None,
+        reuse_materials_run: str | None = None,
     ) -> None:
         self.config = PipelineConfig(
             topic=topic,
@@ -47,6 +52,7 @@ class ReportPipeline:
             runs_dir=runs_dir,
             dry_run=dry_run,
             resume_run=resume_run,
+            reuse_materials_run=reuse_materials_run,
         )
         if resume_run:
             self.run_id = resume_run
@@ -74,6 +80,8 @@ class ReportPipeline:
                 topic=self.config.topic,
                 notebook_name=self.config.notebook_name,
             )
+            if self.config.reuse_materials_run:
+                self._reuse_materials()
 
         try:
             self._run_task("init.resolve_notebook", self._resolve_notebook)
@@ -81,6 +89,7 @@ class ReportPipeline:
 
             self._run_task("ch1.1a.retrieve", self._retrieve_ch1_1a)
             self._run_task("ch1.2a.retrieve", self._retrieve_ch1_2a)
+            self._run_task("ch0.strategic_framing", self._strategic_framing)
             self._run_task("ch1.1b.write", self._write_ch1_1b)
             self._run_task("ch1.2b.write", self._write_ch1_2b)
             self._run_task("ch1.3a.plan", self._plan_ch1_3a)
@@ -151,6 +160,15 @@ class ReportPipeline:
             self._refresh_task_state_notebook_id()
             return
 
+        if self.config.reuse_materials_run:
+            self.notebook_id = "REUSED_MATERIALS"
+            self._write(
+                "notebook_resolution.md",
+                f"# Notebook 解析结果\n\n- 复用材料运行：{self.config.reuse_materials_run}\n- Notebook ID：{self.notebook_id}\n",
+            )
+            self._refresh_task_state_notebook_id()
+            return
+
         self.notebooklm.check_auth()
         notebook = self.notebooklm.find_notebook(self.config.notebook_name)
         self.notebook_id = notebook.id
@@ -213,6 +231,7 @@ class ReportPipeline:
                 self._read("retrieval_outputs/chapter1_top_design.md")
             )[1],
         )
+        prompt = self._with_strategic_framing(prompt)
         self._save_generated_prompt("ch1_1b_writing.md", prompt)
         self._ask_deepseek(prompt, "chapter_drafts/chapter1_top_design.md")
         self._postprocess_ch1_governance_draft("chapter_drafts/chapter1_top_design.md")
@@ -227,12 +246,15 @@ class ReportPipeline:
             ch1_2a_retrieval_content=retrieval_content,
             ch1_2a_related_literature=related_literature,
         )
+        prompt = self._with_strategic_framing(prompt)
         self._save_generated_prompt("ch1_2b_writing.md", prompt)
         self._ask_deepseek(prompt, "chapter_drafts/chapter1_implementation.md")
         self._postprocess_ch1_governance_draft("chapter_drafts/chapter1_implementation.md")
 
     def _plan_ch1_3a(self) -> None:
         prompt = self._read("generated_prompts/ch1_3a_planning.md")
+        prompt = self._with_strategic_framing(prompt)
+        self._save_generated_prompt("ch1_3a_planning.md", prompt)
         self._ask_deepseek(prompt, "extracted_materials/chapter1_topic_specific_title.md")
 
     def _retrieve_ch1_3b(self) -> None:
@@ -263,6 +285,7 @@ class ReportPipeline:
             ch1_3b_retrieval_content=retrieval_content,
             ch1_3b_related_literature=related_literature,
         )
+        prompt = self._with_strategic_framing(prompt)
         self._save_generated_prompt("ch1_3c_writing.md", prompt)
         self._ask_deepseek(prompt, "chapter_drafts/chapter1_topic_specific.md")
         self._ensure_ch1_topic_specific_heading("chapter_drafts/chapter1_topic_specific.md")
@@ -295,6 +318,8 @@ class ReportPipeline:
 
     def _plan_ch2_topic(self) -> None:
         prompt = self._read("generated_prompts/ch2_topic_planning.md")
+        prompt = self._with_strategic_framing(prompt)
+        self._save_generated_prompt("ch2_topic_planning.md", prompt)
         self._ask_deepseek(
             prompt,
             "extracted_materials/chapter2_topic.md",
@@ -326,6 +351,13 @@ class ReportPipeline:
             chapter2_retrieval_content=retrieval_content,
             chapter2_related_literature=related_literature,
         )
+        prompt = self._with_strategic_framing(prompt)
+        prompt = "\n\n".join(
+            [
+                prompt,
+                "【战略仰角校准（硬约束）】自下而上凝出维度后再向上校准一次：维度须落在“国家战略布局/路线选择”的高度可比，而非停在技术做法层；若维度过于技术化，参照战略态势卡的“主要路线分野”向上抽一层重命名。仅可依据材料中已有的高位政策事实做此提升，不得自造战略叙事。",
+            ]
+        )
         self._save_generated_prompt("ch2_dimensions_planning.md", prompt)
         self._ask_deepseek(prompt, "extracted_materials/chapter2_dimensions.md")
 
@@ -341,6 +373,7 @@ class ReportPipeline:
             chapter2_retrieval_content=retrieval_content,
             chapter2_related_literature=related_literature,
         )
+        prompt = self._with_strategic_framing(prompt)
         self._save_generated_prompt("ch2_writing.md", prompt)
         self._ask_deepseek(prompt, "chapter_drafts/chapter2.md")
         self._ensure_chapter2_heading("chapter_drafts/chapter2.md")
@@ -361,6 +394,9 @@ class ReportPipeline:
             chapter1_draft=self._read("chapter_drafts/chapter1.md"),
             chapter2_draft=self._read("chapter_drafts/chapter2.md"),
         )
+        prompt = self._with_strategic_framing(prompt)
+        prompt = self._with_institution_profile(prompt)
+        prompt = self._with_policy_style_dna(prompt, "writing")
         self._save_generated_prompt("ch3_writing.md", prompt)
         self._ask_deepseek(prompt, "chapter_drafts/chapter3.md")
 
@@ -400,6 +436,8 @@ class ReportPipeline:
             review_template=self._read_review_template(),
             full_report=self._read("final_report.md"),
         )
+        prompt = self._with_strategic_framing(prompt)
+        prompt = self._with_policy_style_dna(prompt, "review")
         self._save_generated_prompt("fulltext_content_structure_review.md", prompt)
         self._ask_deepseek(prompt, "review_reports/fulltext_content_structure_review.md")
 
@@ -413,6 +451,8 @@ class ReportPipeline:
             review_report=self._read("review_reports/fulltext_content_structure_review.md"),
             full_report=self._read("final_report.md"),
         )
+        prompt = self._with_strategic_framing(prompt)
+        prompt = self._with_institution_profile(prompt)
         self._save_generated_prompt("fulltext_content_structure_rewrite.md", prompt)
         self._ask_deepseek(prompt, "final_report_reviewed.md")
 
@@ -494,6 +534,87 @@ class ReportPipeline:
         return prompt_builder.read_original_prompt(
             "workflow/review_templates/content_structure_review.md"
         )
+
+    # ---- ch0 战略态势研判 + gated 注入钩子（无资产文件时零变化）----
+    def _strategic_framing(self) -> None:
+        """ch0：基于 1A/2A 检索材料产出「战略态势卡」，为全篇提供高位战略锚。"""
+        template = (WORKFLOW_DIR / "prompts" / "strategic_framing.md").read_text(encoding="utf-8")
+        material = "\n\n".join(
+            [
+                "【1A 顶层设计检索材料】",
+                self._read("retrieval_outputs/chapter1_top_design.md"),
+                "【2A 实施机制检索材料】",
+                self._read("retrieval_outputs/chapter1_implementation.md"),
+            ]
+        )
+        prompt = template.replace("{{topic}}", self.config.topic) + "\n\n【检索材料】\n\n" + material
+        self._save_generated_prompt("ch0_strategic_framing.md", prompt)
+        self._ask_deepseek(
+            prompt, "extracted_materials/strategic_framing.md", reasoning_effort="max"
+        )
+
+    def _strategic_framing_text(self) -> str:
+        path = self.run_dir / "extracted_materials" / "strategic_framing.md"
+        return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+    def _with_strategic_framing(self, prompt: str) -> str:
+        text = self._strategic_framing_text()
+        if not text.strip():
+            return prompt
+        return "\n\n".join(
+            [
+                prompt,
+                "【战略态势卡（贯穿全文的高位战略锚；只可引用其中已溯源的高位政策事实，不得据此自造态势）】",
+                text,
+            ]
+        )
+
+    def _institution_profile_text(self) -> str:
+        path = WORKFLOW_DIR / "institution_profile.md"
+        return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+    def _with_institution_profile(self, prompt: str) -> str:
+        text = self._institution_profile_text()
+        if not text.strip():
+            return prompt
+        return "\n\n".join([prompt, "【机构定位与建议落点（建议必须落到教育域抓手）】", text])
+
+    def _policy_style_dna_text(self, mode: str) -> str:
+        mode_to_files = {
+            "writing": ["voice.md", "structure.md", "sentence.md", "recommendation.md", "forbidden.md"],
+            "review": ["voice.md", "structure.md", "forbidden.md", "recommendation.md", "self_check.md"],
+            "revision": ["voice.md", "sentence.md", "forbidden.md", "recommendation.md", "self_check.md"],
+        }
+        files = list(mode_to_files.get(mode, mode_to_files["writing"]))
+        files.append("subtype_a.md")
+        blocks = []
+        for name in files:
+            path = WORKFLOW_DIR / "policy_style_dna" / "wiki" / name
+            if path.is_file():
+                blocks.append(f"## {name}\n\n{path.read_text(encoding='utf-8')}")
+        return "\n\n".join(blocks)
+
+    def _with_policy_style_dna(self, prompt: str, mode: str) -> str:
+        text = self._policy_style_dna_text(mode)
+        if not text.strip():
+            return prompt
+        return "\n\n".join(
+            [
+                prompt,
+                "【政策研究文风 DNA（只控写作姿态/结构/句式/审查标准，不作事实来源；不得新增其中政策事实/年份/机构/数据；正文不得输出文件名或分类过程）】",
+                text,
+            ]
+        )
+
+    def _reuse_materials(self) -> None:
+        """复用指定 run 的 retrieval_outputs（盲跑），并把检索任务标记为已完成、跳过 NotebookLM。"""
+        src = file_store.get_run_dir(self.config.reuse_materials_run) / "retrieval_outputs"
+        dst = self.run_dir / "retrieval_outputs"
+        dst.mkdir(parents=True, exist_ok=True)
+        for f in sorted(src.glob("*.md")):
+            shutil.copyfile(f, dst / f.name)
+        for task_id in ("ch1.1a.retrieve", "ch1.2a.retrieve", "ch1.3b.retrieve", "ch2.retrieve"):
+            task_state.record_task_output(self.run_dir, task_id, output=self._task_output(task_id))
 
     def _refresh_task_state_notebook_id(self) -> None:
         """Notebook ID 解析后，更新 task_state.md 头部信息。"""
@@ -793,6 +914,7 @@ class ReportPipeline:
             "prompt.build_all": "generated_prompts/",
             "ch1.1a.retrieve": "retrieval_outputs/chapter1_top_design.md",
             "ch1.2a.retrieve": "retrieval_outputs/chapter1_implementation.md",
+            "ch0.strategic_framing": "extracted_materials/strategic_framing.md",
             "ch1.1b.write": "chapter_drafts/chapter1_top_design.md",
             "ch1.2b.write": "chapter_drafts/chapter1_implementation.md",
             "ch1.3a.plan": "extracted_materials/chapter1_topic_specific_title.md",

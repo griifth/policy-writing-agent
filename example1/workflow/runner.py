@@ -38,6 +38,11 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="从已有 runs/<run_id> 继续执行，跳过已完成任务",
     )
+    parser.add_argument(
+        "--reuse-materials-run",
+        default=None,
+        help="复用指定 run 的 retrieval_outputs，跳过 NotebookLM（盲跑/同料对比用）",
+    )
     return parser.parse_args()
 
 
@@ -50,6 +55,7 @@ def main() -> int:
         runs_dir=Path(args.runs_dir),
         dry_run=args.dry_run,
         resume_run=args.resume_run,
+        reuse_materials_run=args.reuse_materials_run,
     )
     pipeline.run()
     return 0
