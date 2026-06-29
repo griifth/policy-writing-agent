@@ -19,3 +19,16 @@ gold_samples/
 multiagent_build/route_a/result_gate/article_*.md
 multiagent_build/route_a/result_gate/_KEY*
 report_modules/trend_review/source/gold_samples/
+
+# 生成的成品导出（同 runs/，不进仓库）
+exports/
+
+# 临时实验脚本
+workflow/tmp_*.py
+
+# 多智能体构建过程产物
+multiagent_build/role_review/
+
+# 文风原始语料（同 style_dna/raw）
+policy_style_dna/raw/
+policy_style_dna/processed/

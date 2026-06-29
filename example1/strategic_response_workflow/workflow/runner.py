@@ -130,17 +130,16 @@ class StrategicResponsePipeline:
                 self._run_task("archive_log", self._archive_log, stop_on_error=False)
 
     def _review_revise_loop(self, start_index: int) -> None:
-        """审查—修改循环；reviewer=handoff 且报告缺失时抛 ReviewHandoff 暂停。"""
+        """审查—修改：审一遍、按审查报告改一遍即定稿（不设达标正则门）。
 
-        for index in range(start_index, self.config.max_iterations + 1):
-            self._do_review(index)
-            if self._review_reaches_standard(index):
-                self._copy("drafts/current_article.md", "final_article_reviewed.md")
-                return
-            self._run_task(
-                f"revise_article.iter{index}",
-                lambda i=index: self._revise_article(i),
-            )
+        handoff 模式下报告缺失时，_do_review 抛 ReviewHandoff 暂停，--resume 后续跑。
+        """
+
+        self._do_review(start_index)
+        self._run_task(
+            f"revise_article.iter{start_index}",
+            lambda i=start_index: self._revise_article(i),
+        )
         self._copy("drafts/current_article.md", "final_article_reviewed.md")
 
     def _do_review(self, index: int) -> None:
@@ -166,7 +165,6 @@ class StrategicResponsePipeline:
     # 触发哪个范围，就读哪份标准文档作为"审什么"。
     _SCOPE_SOURCES = {
         "style_and_expression": ("policy_style_dna/review_scope.md", "policy_style_dna_snapshot"),
-        "reasoning_compliance": ("reasoning_dna/review_scope.md", "reasoning_dna_snapshot"),
         "precedent_check": ("reviewers/precedent_check_scope.md", None),
     }
 
@@ -548,6 +546,8 @@ class StrategicResponsePipeline:
                 self._fill_common(self._read_module("prompts/review.md")),
                 "【政策研究文风 DNA】",
                 self._policy_style_dna_text("review"),
+                "【文风与表达审查标准（A/B 两模式同源 · policy_style_dna/review_scope.md）】",
+                self._style_review_scope_text(),
                 "【示例文章原文】",
                 self._read_module("source/sample.md"),
                 "【示例文章抽象模板】",
@@ -694,29 +694,12 @@ class StrategicResponsePipeline:
         content = self.llm.ask(prompt)
         self._write(output, content)
 
-    def _review_reaches_standard(self, index: int) -> bool:
-        """根据审查报告判断是否可以停止迭代。
+    # _review_reaches_standard 已移除：改为“审一遍、按报告改一遍即定稿”，不再设达标正则门。
 
-        “基本达到”但仍出现不合理建议、对象错配、工具错配或必须重写时，
-        不能提前停下，否则审查只会变成形式确认。
-        """
-
-        text = self._read(f"review_reports/review_iter{index}.md")
-        blocker_patterns = [
-            r"总体结论[：:]\s*未达到",
-            r"未达到示例标准",
-            r"(?:判定|结论)[：:]\s*不合理",
-            r"(?:判定为|被判为|属于)\s*不合理",
-            r"(?:存在|出现|仍有|发现|属于|判定为|被判为).{0,12}对象错配",
-            r"(?:存在|出现|仍有|发现|属于|判定为|被判为).{0,12}工具错配",
-            r"(?:存在|出现|仍有|发现|属于|判定为|被判为).{0,12}制度不适配",
-            r"必须重写",
-            r"需要重构",
-            r"(?:存在|仍有|发现).{0,12}硬伤",
-        ]
-        if any(re.search(pattern, text) for pattern in blocker_patterns):
-            return False
-        return "总体结论：达到" in text or "总体结论：基本达到" in text
+    def _style_review_scope_text(self) -> str:
+        """文风与表达审查标准（A/B 两模式同源）：policy_style_dna/review_scope.md。"""
+        path = WORKFLOW_ROOT / "policy_style_dna" / "review_scope.md"
+        return path.read_text(encoding="utf-8") if path.is_file() else ""
 
     def _all_retrieval_text(self) -> str:
         """汇总全部检索材料。"""
@@ -993,7 +976,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--review-scope",
         default="style_and_expression",
-        choices=["style_and_expression", "reasoning_compliance", "precedent_check"],
+        choices=["style_and_expression", "precedent_check"],
         help="handoff 审稿范围；默认只审文风与表述",
     )
     modules_root = WORKFLOW_ROOT / "report_modules"
