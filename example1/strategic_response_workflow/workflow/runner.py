@@ -79,6 +79,7 @@ class StrategicResponsePipeline:
     ) -> None:
         self.config = config
         self.resume = resume
+        self.continue_mode = False
         self._start_index = 1
         self.module_root = WORKFLOW_ROOT / "report_modules" / config.report_type
         if not self.module_root.is_dir():
@@ -106,17 +107,12 @@ class StrategicResponsePipeline:
                         break
                     self.completed_tasks.add(task_id)
             else:
-                self._run_task("init", self._init_run)
-                self._run_task("resolve_notebook", self._resolve_notebook)
-                self._run_task("build_retrieval_prompts", self._build_retrieval_prompts)
-                self._run_task("retrieve_materials", self._retrieve_materials)
-                self._run_task("redefine_task", self._redefine_task)
-                self._run_task("assign_material_roles", self._assign_material_roles)
-                self._run_task("map_pressure_judgment", self._map_pressure_judgment)
-                self._run_task("plan_article", self._plan_article)
-                self._run_task("build_suggestion_pool", self._build_suggestion_pool)
-                self._run_task("prioritize_policy_options", self._prioritize_policy_options)
-                self._run_task("write_draft", self._write_draft)
+                for task_id, func in self._pipeline_steps():
+                    if self.continue_mode and self._step_done(task_id):
+                        self.completed_tasks.add(task_id)
+                        self._render_task_state(current_task=task_id)
+                        continue
+                    self._run_task(task_id, func)
 
             self._review_revise_loop(self._start_index)
 
@@ -128,6 +124,40 @@ class StrategicResponsePipeline:
         finally:
             if not paused:
                 self._run_task("archive_log", self._archive_log, stop_on_error=False)
+
+    def _pipeline_steps(self):
+        """生成阶段的有序步骤（init → write_draft）。审稿/对比/导出不在此列。"""
+        return [
+            ("init", self._init_run),
+            ("resolve_notebook", self._resolve_notebook),
+            ("build_retrieval_prompts", self._build_retrieval_prompts),
+            ("retrieve_materials", self._retrieve_materials),
+            ("redefine_task", self._redefine_task),
+            ("assign_material_roles", self._assign_material_roles),
+            ("map_pressure_judgment", self._map_pressure_judgment),
+            ("plan_article", self._plan_article),
+            ("build_suggestion_pool", self._build_suggestion_pool),
+            ("prioritize_policy_options", self._prioritize_policy_options),
+            ("write_draft", self._write_draft),
+        ]
+
+    def _step_done(self, task_id: str) -> bool:
+        """续跑（--continue）判据：该步骤的产物文件是否已全部存在。"""
+        rt = self.retrieval_types
+        markers = {
+            "init": ["input.yaml"],
+            "resolve_notebook": ["notebook_resolution.md"],
+            "build_retrieval_prompts": [f"generated_prompts/retrieval_{rt[0]}.md"] if rt else [],
+            "retrieve_materials": [f"retrieval_outputs/{t}.md" for t in rt],
+            "redefine_task": ["judgment_outputs/task_redefinition.md"],
+            "assign_material_roles": ["judgment_outputs/material_roles.md"],
+            "map_pressure_judgment": ["judgment_outputs/pressure_judgment_mapping.md"],
+            "plan_article": ["planning_outputs/article_plan.md"],
+            "build_suggestion_pool": ["suggestion_outputs/suggestion_pool.md"],
+            "prioritize_policy_options": ["suggestion_outputs/policy_priority.md"],
+            "write_draft": ["drafts/current_article.md"],
+        }.get(task_id, [])
+        return bool(markers) and all((self.run_dir / m).exists() for m in markers)
 
     def _review_revise_loop(self, start_index: int) -> None:
         """审查—修改：审一遍、按审查报告改一遍即定稿（不设达标正则门）。
@@ -307,6 +337,37 @@ class StrategicResponsePipeline:
         state = json.loads(state_path.read_text(encoding="utf-8"))
         pipeline = cls(Config(**state["config"]), run_id=run_id, resume=True)
         pipeline._start_index = int(state.get("paused_index", 1))
+        return pipeline
+
+    @classmethod
+    def continue_run(cls, run_id: str, args) -> "StrategicResponsePipeline":
+        """中途续跑：从已有 run 的 input.yaml 重建，按产物标记从第一个未完成步骤接着跑。
+
+        数据字段（report_type/topic/参数/后端）取自 input.yaml；
+        审稿与写稿阶段参数（reviewer/review_scope/style_subtype/max_iterations）取自命令行。
+        """
+        run_dir = cls._resolve_run_dir(run_id)
+        input_path = run_dir / "input.yaml"
+        if not input_path.is_file():
+            raise FileNotFoundError(f"找不到 input.yaml，无法续跑: {input_path}")
+        data = yaml.safe_load(input_path.read_text(encoding="utf-8")) or {}
+        config = Config(
+            topic=data.get("topic", ""),
+            target_country=data.get("target_country", ""),
+            strategy_domain=data.get("strategy_domain", ""),
+            notebook_name=data.get("notebook_name", ""),
+            china_response_focus=data.get("china_response_focus", "中国应对策略"),
+            report_type=data.get("report_type", "strategic_response"),
+            llm_provider=data.get("llm_provider", "deepseek"),
+            reuse_materials_run=data.get("reuse_materials_run") or None,
+            dry_run=args.dry_run,
+            max_iterations=max(1, args.max_iterations),
+            reviewer=args.reviewer,
+            review_scope=args.review_scope,
+            style_subtype=args.style_subtype,
+        )
+        pipeline = cls(config, run_id=run_id)
+        pipeline.continue_mode = True
         return pipeline
 
     def _init_run(self) -> None:
@@ -1007,6 +1068,12 @@ def parse_args() -> argparse.Namespace:
         choices=["auto", "a", "b"],
         help="policy_style_dna 子型路由：auto=按 report_type 自动（strategic_response/experience_response→a 战略建议，trend_review→b 机制综述）；a/b=强制覆盖",
     )
+    parser.add_argument(
+        "--continue",
+        dest="continue_run",
+        metavar="RUN_ID",
+        help="中途续跑：从已有 run 第一个未完成步骤接着跑（复用已产出的检索/判断/构思，不重查 NotebookLM）；审稿参数用 --reviewer/--review-scope 指定",
+    )
     return parser.parse_args()
 
 
@@ -1017,6 +1084,10 @@ def main() -> int:
 
     if args.resume:
         StrategicResponsePipeline.resume_run(args.resume).run()
+        return 0
+
+    if args.continue_run:
+        StrategicResponsePipeline.continue_run(args.continue_run, args).run()
         return 0
 
     missing = [
