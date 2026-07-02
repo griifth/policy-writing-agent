@@ -115,6 +115,7 @@ cd ..
 
 ## 六、更多文档
 
+- **[`USAGE.md`](USAGE.md)** — 全流程使用指南（搜资料→检索→识别体例写作→教科院审核优化）
 - **[`report-workflow-runbook/SKILL.md`](report-workflow-runbook/SKILL.md)** — 怎么驱动两台引擎（选引擎/命令/续跑/失败处置）
 - **[`WINDOWS_MIGRATION_CHECKLIST.md`](WINDOWS_MIGRATION_CHECKLIST.md)** — 移植到 Windows 的完整修复清单
 - **[`task_config.template.yaml`](task_config.template.yaml)** — 报告任务配置模板
