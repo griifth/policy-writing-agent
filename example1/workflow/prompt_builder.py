@@ -126,7 +126,7 @@ def read_original_prompt(relative_path: str | Path) -> str:
     """读取项目内原始提示词文件内容。
 
     参数使用相对项目根目录的路径，例如：
-    多政策的国际比较报告/第一章提示词/1A:顶层设计 - 检索
+    多政策的国际比较报告/第一章提示词/1A：顶层设计 - 检索
     """
 
     path = _resolve_project_path(relative_path)
@@ -410,7 +410,7 @@ def _input_fulltext_revision(values: Mapping[str, str]) -> str:
 PROMPT_SPECS: dict[str, PromptSpec] = {
     "retrieval.ch1_1a": PromptSpec(
         prompt_type="retrieval",
-        original_path="多政策的国际比较报告/第一章提示词/1A:顶层设计 - 检索",
+        original_path="多政策的国际比较报告/第一章提示词/1A：顶层设计 - 检索",
         input_builder=_input_retrieval_1a,
         output_contract=RETRIEVAL_OUTPUT_CONTRACT,
         original_transform=_replace_standard_topics,
@@ -466,7 +466,7 @@ PROMPT_SPECS: dict[str, PromptSpec] = {
     ),
     "writing.ch1_1b": PromptSpec(
         prompt_type="writing",
-        original_path="多政策的国际比较报告/第一章提示词/模块 1B:顶层设计 · 归类加写作",
+        original_path="多政策的国际比较报告/第一章提示词/模块 1B：顶层设计 · 归类加写作",
         input_builder=_input_writing_1b,
         output_contract=WRITING_OUTPUT_CONTRACT,
         original_transform=_replace_standard_topics,
@@ -474,7 +474,7 @@ PROMPT_SPECS: dict[str, PromptSpec] = {
     ),
     "writing.ch1_2b": PromptSpec(
         prompt_type="writing",
-        original_path="多政策的国际比较报告/第一章提示词/ 2B:实施机制 · 归类",
+        original_path="多政策的国际比较报告/第一章提示词/2B：实施机制 · 归类",
         input_builder=_input_writing_2b,
         output_contract=WRITING_OUTPUT_CONTRACT,
         original_transform=_replace_standard_topics,

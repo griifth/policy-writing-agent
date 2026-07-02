@@ -141,10 +141,10 @@ DeepSeek 调用约束：
 
 | 工作流模块 | 原始提示词来源 | 产物 |
 | --- | --- | --- |
-| 第一章-顶层设计检索 | `多政策的国际比较报告/第一章提示词/1A:顶层设计 - 检索` | `retrieval_outputs/chapter1_top_design.md` |
+| 第一章-顶层设计检索 | `多政策的国际比较报告/第一章提示词/1A：顶层设计 - 检索` | `retrieval_outputs/chapter1_top_design.md` |
 | 第一章-实施机制检索 | `多政策的国际比较报告/第一章提示词/2A：实施机制-检索` | `retrieval_outputs/chapter1_implementation.md` |
-| 第一章-顶层设计成文 | `多政策的国际比较报告/第一章提示词/模块 1B:顶层设计 · 归类加写作` | `chapter_drafts/chapter1_top_design.md` |
-| 第一章-实施机制成文 | `多政策的国际比较报告/第一章提示词/ 2B:实施机制 · 归类` | `chapter_drafts/chapter1_implementation.md` |
+| 第一章-顶层设计成文 | `多政策的国际比较报告/第一章提示词/模块 1B：顶层设计 · 归类加写作` | `chapter_drafts/chapter1_top_design.md` |
+| 第一章-实施机制成文 | `多政策的国际比较报告/第一章提示词/2B：实施机制 · 归类` | `chapter_drafts/chapter1_implementation.md` |
 | 第一章-主题特性定题 | `多政策的国际比较报告/第一章提示词/3a 主题痛点` | `extracted_materials/chapter1_topic_specific_title.md` |
 | 第一章-主题特性检索 | `多政策的国际比较报告/第一章提示词/3b 检索` | `retrieval_outputs/chapter1_topic_specific.md` |
 | 第一章-主题特性成文 | `多政策的国际比较报告/第一章提示词/3c 分维度加写作` | `chapter_drafts/chapter1_topic_specific.md` |
