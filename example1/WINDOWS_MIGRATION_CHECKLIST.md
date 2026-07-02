@@ -6,6 +6,20 @@
 
 ---
 
+## ⚠️ 克隆后必做两件事（`git clone` 不会带来的东西）
+
+> 项目通过 `git clone` 移植，以下两项**被有意排除在仓库外**，clone 下来一定缺，缺了任一项都会在运行时失败。放在最前面提醒，别漏。
+
+1. **重建 `.env`（含密钥，未入仓库）**：仓库里只有 `.env.example`，没有真实 `.env`。必须在**两个**位置各复制一份并填值：
+   - `PROJECT_ROOT\.env`（复制 `PROJECT_ROOT\.env.example`）
+   - `strategic_response_workflow\.env`（复制 `strategic_response_workflow\.env.example`）
+   - 至少填 `DEEPSEEK_API_KEY=<你的key>`；`DEEPSEEK_MODEL` 保持 `deepseek-v4-pro`（本项目实际模型）。详见 **A7**。
+2. **重新登录 NotebookLM（登录态未入仓库）**：clone 不含任何登录凭证。必须在 Windows 上重跑 `notebooklm login` 并通过 `notebooklm auth check --test --json`。详见 **A4**。
+
+> 这两项也在 A 区有完整步骤；此处只作"克隆即缺、必补"的醒目提示。`python scripts\deploy_selfcheck.py` 会显式检查这两项，未补会报 FAIL/WARN。
+
+---
+
 ## 给执行 agent 的须知（先读，务必遵守）
 
 1. **幂等**：每一步都应可重复执行而不产生副作用。安装类命令先检查是否已装（`--version` / `where`）再决定是否安装；配置类改动改前先确认当前值，已是目标值则跳过并打勾。
