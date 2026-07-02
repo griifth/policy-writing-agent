@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>自动化国际政策比较报告写作工作流</title>
+  <link rel="icon" href="data:," />
+  <style>
+    :root {
+      --ink: #17201b;
+      --muted: #61716a;
+      --paper: #f6f3ea;
+      --panel: #fffdf7;
+      --line: #d9d0c2;
+      --line-strong: #b8aa98;
+      --agent: #245b50;
+      --知识库: #2e6f95;
+      --大模型: #8a5a20;
+      --review: #6b4b7a;
+      --accent: #b7392d;
+      --shadow: 0 22px 70px rgba(31, 43, 38, .14);
+      --mono: "SFMono-Regular", "Cascadia Mono", "Menlo", monospace;
+      --serif: "Songti SC", "Noto Serif CJK SC", "STSong", serif;
+      --sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(23,32,27,.045) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(23,32,27,.04) 1px, transparent 1px),
+        var(--paper);
+      background-size: 28px 28px;
+      font-family: var(--sans);
+      letter-spacing: 0;
+    }
+
+    .shell {
+      width: min(1500px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 24px 0 30px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 24px;
+      align-items: end;
+      padding: 18px 0 20px;
+      border-bottom: 2px solid var(--ink);
+    }
+
+    h1 {
+      margin: 0;
+      font-family: var(--serif);
+      font-size: clamp(28px, 3.4vw, 52px);
+      line-height: 1.05;
+      font-weight: 800;
+    }
+
+    .subtitle {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.65;
+      max-width: 900px;
+    }
+
+    .status-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: 8px;
+      min-width: 480px;
+    }
+
+    .metric {
+      border: 1px solid var(--line-strong);
+      background: rgba(255,253,247,.74);
+      padding: 10px 12px;
+      min-height: 70px;
+    }
+
+    .metric b { display: block; font-size: 20px; line-height: 1.1; }
+    .metric span { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(360px, .55fr);
+      gap: 18px;
+      margin-top: 18px;
+      align-items: start;
+    }
+
+    .board, .prompt-bank, .detail {
+      background: rgba(255,253,247,.9);
+      border: 1px solid var(--line-strong);
+      box-shadow: var(--shadow);
+    }
+
+    .board { padding: 18px; }
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 14px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 12px;
+    }
+
+    .section-title h2 {
+      margin: 0;
+      font-family: var(--serif);
+      font-size: 24px;
+    }
+
+    .hint { color: var(--muted); font-size: 13px; line-height: 1.5; }
+
+    .flow {
+      display: grid;
+      grid-template-columns: minmax(175px, .75fr) minmax(185px, .82fr) minmax(430px, 1.72fr) minmax(190px, .85fr);
+      gap: 14px;
+      overflow-x: auto;
+      padding-bottom: 6px;
+    }
+
+    .lane {
+      position: relative;
+      min-width: 210px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.72), rgba(255,253,247,.62));
+      padding: 12px;
+    }
+
+    .lane:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      right: -12px;
+      top: 38px;
+      width: 22px;
+      border-top: 2px solid var(--line-strong);
+    }
+
+    .lane h3 {
+      margin: 0 0 12px;
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--ink);
+    }
+
+    .node {
+      position: relative;
+      padding: 11px 11px 11px 14px;
+      margin: 9px 0;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      min-height: 86px;
+      transition: transform .18s ease, border-color .18s ease, background .18s ease;
+    }
+
+    .node:hover {
+      transform: translateY(-2px);
+      border-color: var(--ink);
+      background: white;
+    }
+
+    .node::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 5px;
+      background: var(--agent);
+    }
+
+    .node[data-kind="检索"]::before { background: var(--知识库); }
+    .node[data-kind="构思"]::before,
+    .node[data-kind="写作"]::before { background: var(--大模型); }
+    .node[data-kind="审查"]::before { background: var(--review); }
+    .node[data-kind="修改"]::before { background: var(--accent); }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 44px;
+      height: 22px;
+      padding: 0 8px;
+      border: 1px solid currentColor;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--agent);
+      margin-bottom: 8px;
+    }
+    .node[data-kind="检索"] .tag { color: var(--知识库); }
+    .node[data-kind="构思"] .tag,
+    .node[data-kind="写作"] .tag { color: var(--大模型); }
+    .node[data-kind="审查"] .tag { color: var(--review); }
+    .node[data-kind="修改"] .tag { color: var(--accent); }
+
+    .node-title { font-weight: 800; font-size: 15px; line-height: 1.35; }
+    .node-desc { color: var(--muted); font-size: 12px; line-height: 1.55; margin-top: 6px; }
+
+    .chapter-lane {
+      min-width: 430px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.82), rgba(255,253,247,.78)),
+        repeating-linear-gradient(90deg, transparent 0 22px, rgba(46,111,149,.05) 22px 23px);
+    }
+
+    .chapter-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .chapter-track {
+      border: 1px solid var(--line);
+      background: rgba(255,253,247,.9);
+      padding: 10px;
+    }
+
+    .track-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 8px;
+      font-weight: 900;
+      font-size: 14px;
+    }
+
+    .track-title span {
+      color: var(--muted);
+      font-size: 11px;
+      font-family: var(--mono);
+      font-weight: 600;
+    }
+
+    .mini-flow {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 7px;
+      align-items: stretch;
+    }
+
+    .mini-flow.three {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .mini-flow.two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .mini-step {
+      position: relative;
+      min-height: 74px;
+      padding: 8px 8px 8px 10px;
+      border: 1px solid var(--line);
+      background: white;
+    }
+
+    .mini-step:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      right: -8px;
+      top: 50%;
+      width: 8px;
+      border-top: 2px solid var(--line-strong);
+    }
+
+    .mini-step b {
+      display: block;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .mini-step small {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--知识库);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .mini-step[data-kind="构思"] small,
+    .mini-step[data-kind="写作"] small { color: var(--大模型); }
+    .mini-step[data-kind="审查"] small { color: var(--review); }
+    .mini-step[data-kind="编排"] small { color: var(--agent); }
+
+    .mini-step p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .merge-note {
+      margin-top: 10px;
+      border: 1px solid var(--line-strong);
+      background: #ece5d6;
+      padding: 9px 10px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .right-stack { display: grid; gap: 14px; position: sticky; top: 14px; }
+
+    .prompt-bank { padding: 14px; }
+    .prompt-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+
+    .prompt-card {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 12px;
+      min-height: 148px;
+      cursor: default;
+      transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+    }
+
+    .prompt-card:hover, .prompt-card.active {
+      transform: translateY(-2px);
+      border-color: var(--ink);
+      box-shadow: 0 12px 30px rgba(31,43,38,.12);
+    }
+
+    .prompt-card .top { display: flex; justify-content: space-between; gap: 8px; align-items: start; }
+    .prompt-card h3 { margin: 0; font-size: 15px; line-height: 1.35; }
+    .pill {
+      flex: 0 0 auto;
+      border: 1px solid var(--line-strong);
+      padding: 3px 7px;
+      font-size: 11px;
+      color: var(--muted);
+      background: rgba(246,243,234,.68);
+    }
+
+    .summary { margin: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .meta { margin-top: 12px; color: var(--ink); font-size: 11px; font-family: var(--mono); overflow-wrap: anywhere; }
+
+    .detail { padding: 0; overflow: hidden; }
+    .detail-head {
+      padding: 13px 15px;
+      border-bottom: 1px solid var(--line);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      background: #ece5d6;
+    }
+
+    .detail-head h2 { margin: 0; font-family: var(--serif); font-size: 20px; }
+    .lock-note { color: var(--muted); font-size: 12px; }
+
+    pre {
+      margin: 0;
+      max-height: min(58vh, 680px);
+      overflow: auto;
+      padding: 15px;
+      background: #111814;
+      color: #ecf1e8;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .dot { width: 10px; height: 10px; display: inline-block; background: var(--agent); }
+    .dot.search { background: var(--知识库); }
+    .dot.deep { background: var(--大模型); }
+    .dot.review { background: var(--review); }
+    .dot.rewrite { background: var(--accent); }
+
+    .artifact-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .artifact {
+      border: 1px solid var(--line);
+      padding: 10px;
+      background: rgba(255,253,247,.78);
+      min-height: 76px;
+    }
+    .artifact b { display: block; font-size: 13px; }
+    .artifact code { display: block; margin-top: 8px; font-family: var(--mono); color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+
+    .next-progress {
+      margin-top: 16px;
+      border: 1px solid var(--line-strong);
+      background:
+        linear-gradient(135deg, rgba(236,229,214,.92), rgba(255,253,247,.86));
+      padding: 14px;
+    }
+
+    .next-progress .section-title {
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+    }
+
+    .next-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .next-card {
+      position: relative;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 12px 12px 12px 15px;
+      min-height: 118px;
+    }
+
+    .next-card::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 5px;
+      background: var(--accent);
+    }
+
+    .next-card b {
+      display: block;
+      font-size: 15px;
+      line-height: 1.35;
+    }
+
+    .next-card span {
+      display: inline-block;
+      margin: 0 0 8px;
+      color: var(--accent);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .next-card p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 1100px) {
+      header { grid-template-columns: 1fr; }
+      .status-strip { min-width: 0; grid-template-columns: repeat(2, 1fr); }
+      .layout { grid-template-columns: 1fr; }
+      .right-stack { position: static; }
+    }
+
+    @media (max-width: 680px) {
+      .shell { width: min(100vw - 20px, 1500px); padding-top: 12px; }
+      .flow { grid-template-columns: 1fr; }
+      .lane:not(:last-child)::after { display: none; }
+      .prompt-grid { grid-template-columns: 1fr; }
+      .artifact-bar { grid-template-columns: 1fr; }
+      .next-grid { grid-template-columns: 1fr; }
+      pre { max-height: 55vh; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <h1>自动化国际政策比较报告写作工作流</h1>
+        <p class="subtitle">面向讲解展示的工作流页面：从主题输入、知识库检索、章节构思写作，到材料依据审查、专家模板审查和最终修订。提示词卡片默认显示简介，悬停或点击即可查看完整提示词。</p>
+      </div>
+      <div class="status-strip" aria-label="工作流指标">
+        <div class="metric"><b>22</b><span>任务状态节点</span></div>
+        <div class="metric"><b>7</b><span>提示词与模板块</span></div>
+        <div class="metric"><b>3</b><span>核心执行者</span></div>
+        <div class="metric"><b>1</b><span>最终修订稿</span></div>
+      </div>
+    </header>
+
+    <section class="layout">
+      <div class="board">
+        <div class="section-title">
+          <h2>写作工作流</h2>
+          <div class="hint">Agent 调度流程，知识库负责材料边界，大模型完成构思、写作、审查和修改。</div>
+        </div>
+        <div class="flow">
+          <section class="lane"><h3>输入与初始化</h3><article class="node" data-kind="编排"><span class="tag">编排</span><div class="node-title">输入主题 + 知识库名称</div><div class="node-desc">Agent 接收报告主题与知识库名称</div></article><article class="node" data-kind="编排"><span class="tag">编排</span><div class="node-title">创建运行目录</div><div class="node-desc">生成 input.yaml、task_state.md、run_log.md</div></article><article class="node" data-kind="编排"><span class="tag">编排</span><div class="node-title">解析知识库ID</div><div class="node-desc">按知识库名称匹配对应知识库</div></article></section><section class="lane"><h3>提示词拼装</h3><article class="node" data-kind="拼装"><span class="tag">拼装</span><div class="node-title">读取原始提示词</div><div class="node-desc">只读复制，不修改原始提示词</div></article><article class="node" data-kind="拼装"><span class="tag">拼装</span><div class="node-title">注入运行输入</div><div class="node-desc">主题、知识库ID、上游材料进入工程化提示词</div></article><article class="node" data-kind="拼装"><span class="tag">拼装</span><div class="node-title">落盘 generated_prompts</div><div class="node-desc">每一步提示词可追溯</div></article></section><section class="lane chapter-lane"><h3>章节生成</h3>
+  <div class="chapter-grid">
+    <div class="chapter-track">
+      <div class="track-title">第一章：各国治理模式 <span>并行检索 + 分段写作</span></div>
+      <div class="mini-flow">
+        <div class="mini-step" data-kind="检索"><small>知识库检索</small><b>顶层设计材料</b><p>国家战略、教育专项框架、国际参照</p></div>
+        <div class="mini-step" data-kind="写作"><small>大模型写作</small><b>顶层设计分类</b><p>形成政策路径与比较判断</p></div>
+        <div class="mini-step" data-kind="检索"><small>知识库检索</small><b>实施机制材料</b><p>统筹机构、委员会、外部执行机制</p></div>
+        <div class="mini-step" data-kind="写作"><small>大模型写作</small><b>实施机制分类</b><p>归纳治理落地方式</p></div>
+      </div>
+      <div class="mini-flow three" style="margin-top:7px">
+        <div class="mini-step" data-kind="构思"><small>大模型构思</small><b>主题特性小标题</b><p>根据主题确定第三个治理维度</p></div>
+        <div class="mini-step" data-kind="检索"><small>知识库检索</small><b>主题特性材料</b><p>围绕小标题补充专门材料</p></div>
+        <div class="mini-step" data-kind="写作"><small>大模型写作</small><b>主题特性正文</b><p>分维度写成第一章第三部分</p></div>
+      </div>
+      <div class="mini-flow two" style="margin-top:7px">
+        <div class="mini-step" data-kind="编排"><small>Agent 组装</small><b>合成第一章</b><p>顶层设计 + 实施机制 + 主题特性</p></div>
+        <div class="mini-step" data-kind="审查"><small>大模型审查</small><b>第一章依据审查</b><p>核对事实、文件、年份、机构</p></div>
+      </div>
+    </div>
+
+    <div class="chapter-track">
+      <div class="track-title">第二章：人才培养 / 目的层主题 <span>先定题再检索</span></div>
+      <div class="mini-flow">
+        <div class="mini-step" data-kind="构思"><small>大模型构思</small><b>第二章定题</b><p>从报告主题推导目的层主题</p></div>
+        <div class="mini-step" data-kind="检索"><small>知识库检索</small><b>资料铺料</b><p>按第二章主题收集各国材料</p></div>
+        <div class="mini-step" data-kind="构思"><small>大模型构思</small><b>维度凝练</b><p>自下而上提炼比较维度</p></div>
+        <div class="mini-step" data-kind="写作"><small>大模型写作</small><b>第二章正文</b><p>按维度完成纵深比较</p></div>
+      </div>
+      <div class="mini-flow two" style="margin-top:7px">
+        <div class="mini-step" data-kind="审查"><small>大模型审查</small><b>第二章依据审查</b><p>检查维度是否来自材料</p></div>
+        <div class="mini-step" data-kind="编排"><small>Agent 传递</small><b>交给第三章</b><p>作为政策建议输入之一</p></div>
+      </div>
+    </div>
+
+    <div class="chapter-track">
+      <div class="track-title">第三章：政策建议 <span>读取前两章后生成</span></div>
+      <div class="mini-flow three">
+        <div class="mini-step" data-kind="编排"><small>Agent 输入</small><b>读取第一章</b><p>治理路径、实施机制、风险防控</p></div>
+        <div class="mini-step" data-kind="编排"><small>Agent 输入</small><b>读取第二章</b><p>素养、教师、课程、人才输送</p></div>
+        <div class="mini-step" data-kind="写作"><small>大模型写作</small><b>政策建议正文</b><p>转化为中国政策动作</p></div>
+      </div>
+      <div class="merge-note"><b>汇合逻辑：</b>第三章不是重新检索材料，而是读取第一章和第二章成文，按照“从国际经验中来，到中国问题中去”的逻辑生成政策建议。</div>
+    </div>
+  </div>
+</section><section class="lane"><h3>审查与修改</h3><article class="node" data-kind="审查"><span class="tag">审查</span><div class="node-title">材料依据审查</div><div class="node-desc">检查事实、机构、年份、文件是否有支撑</div></article><article class="node" data-kind="审查"><span class="tag">审查</span><div class="node-title">全文内容结构审查</div><div class="node-desc">使用专家审查意见固定模板</div></article><article class="node" data-kind="修改"><span class="tag">修改</span><div class="node-title">生成最终修订稿</div><div class="node-desc">输出 final_report_reviewed.md</div></article><article class="node" data-kind="编排"><span class="tag">编排</span><div class="node-title">归档运行日志</div><div class="node-desc">记录任务状态、错误和最终产物</div></article></section>
+        </div>
+
+        <div class="legend" aria-label="图例">
+          <span><i class="dot"></i>编排 / 拼装</span>
+          <span><i class="dot search"></i>检索</span>
+          <span><i class="dot deep"></i>构思 / 写作</span>
+          <span><i class="dot review"></i>审查</span>
+          <span><i class="dot rewrite"></i>修改</span>
+        </div>
+
+        <div class="artifact-bar">
+          <div class="artifact"><b>运行状态</b><code>task_state.md</code></div>
+          <div class="artifact"><b>提示词副本</b><code>generated_prompts/</code></div>
+          <div class="artifact"><b>审查报告</b><code>review_reports/</code></div>
+          <div class="artifact"><b>最终修订稿</b><code>final_report_reviewed.md</code></div>
+        </div>
+
+        <section class="next-progress" aria-label="下一步进展">
+          <div class="section-title">
+            <h2>下一步进展</h2>
+            <div class="hint">从单篇报告生成，继续推进到范式抽取、知识库迁移和政策建议科学化。</div>
+          </div>
+          <div class="next-grid">
+            <article class="next-card">
+              <span>NEXT 01</span>
+              <b>构思批量提取报告范式的工作流</b>
+              <p>面向多篇专家报告，自动提取标题体系、章节功能、比较维度、论证链条和政策建议写法，沉淀为可复用的写作范式库。</p>
+            </article>
+            <article class="next-card">
+              <span>NEXT 02</span>
+              <b>将知识库迁移到腾讯 ima</b>
+              <p>把当前依赖的知识库检索能力转移到 ima，重新验证材料召回、原文追溯、批量管理和工作流接口的稳定性。</p>
+            </article>
+            <article class="next-card">
+              <span>NEXT 03</span>
+              <b>为最终政策建议设计科学解决方案</b>
+              <p>针对第三章建立更具体的生成机制：先识别国际经验，再诊断中国问题，最后形成可操作、可核验、可落地的政策动作。</p>
+            </article>
+          </div>
+        </section>
+      </div>
+
+      <aside class="right-stack">
+        <section class="prompt-bank">
+          <div class="section-title">
+            <h2>提示词库</h2>
+            <div class="hint">悬停查看全文，点击固定。</div>
+          </div>
+          <div class="prompt-grid" id="promptGrid"></div>
+        </section>
+
+        <section class="detail" aria-live="polite">
+          <div class="detail-head">
+            <h2 id="detailTitle">提示词全文</h2>
+            <span class="lock-note" id="lockNote">悬停卡片查看</span>
+          </div>
+          <pre id="detailContent">将鼠标放到任一提示词卡片上，这里会显示完整提示词。点击卡片可以固定内容，再次点击其他卡片切换。</pre>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const prompts = [{"id": "retrieval", "title": "检索提示词块", "kind": "检索", "actor": "知识库", "path": "workflow/prompts/retrieval.md", "summary": "把主题和知识库ID 注入检索提示词，要求知识库一次性返回“检索内容”和“相关文献”。", "content": "# 检索功能提示词块\n\n执行者：知识库检索能力\n\n目标：把工程化检索提示词传给指定知识库，返回材料。\n\n## 1. 通用检索输出约束\n\n所有检索模块统一追加以下输出约束：\n\n```text\n【工程化输出要求】\n请只输出以下两部分：\n\n一、检索内容\n按照原始提示词要求罗列检索材料。\n尽量保留来源主体、文件名称、年份、具体做法或关键表述、引用标记。\n不同来源主体、不同文件、不同举措尽量拆开写，不要为了简洁而合并。\n如果知识库未见相关内容，直接写“未见”。\n本部分只做检索和铺料，不做分类、不归纳维度、不写对比结论、不提出对策。\n\n二、相关文献\n集中列出本次检索命中的相关文献。\n每条尽量包含：来源主体、文件名称、年份、发布机构、引用标记。\n相关文献只需集中列出，不需要与“一、检索内容”逐条对应。\n```\n\n## 2. 第一章顶层设计检索\n\n原始提示词：\n\n```text\n多政策的国际比较报告/第一章提示词/顶层设计检索提示词\n```\n\n拼装输入：\n\n```text\n报告主题：{{topic}}\n知识库名称：{{知识库名称}}\nNotebook ID：{{知识库ID}}\n```\n\n拼装方式：\n\n```text\n【本次输入】\n报告主题：{{topic}}\n知识库名称：{{知识库名称}}\nNotebook ID：{{知识库ID}}\n\n【原始提示词】\n{{将第一章顶层设计检索原始提示词中的【主题】替换为 topic}}\n\n【工程化输出要求】\n{{通用检索输出约束}}\n```\n\n输出内容：\n\n```text\n一、检索内容\n……\n\n二、相关文献\n……\n```\n\n## 3. 第一章实施机制检索\n\n原始提示词：\n\n```text\n多政策的国际比较报告/第一章提示词/实施机制检索提示词\n```\n\n拼装输入：\n\n```text\n报告主题：{{topic}}\n知识库名称：{{知识库名称}}\nNotebook ID：{{知识库ID}}\n```\n\n拼装方式：\n\n```text\n【本次输入】\n报告主题：{{topic}}\n知识库名称：{{知识库名称}}\nNotebook ID：{{知识库ID}}\n\n【原始提示词】\n{{将第一章实施机制检索原始提示词中的【主题】替换为 topic}}\n\n【工程化输出要求】\n{{通用检索输出约束}}\n```\n\n输出内容：\n\n```text\n一、检索内容\n……\n\n二、相关文献\n……\n```\n\n## 4. 第一章主题特性材料检索\n\n原始提示词：\n\n```text\n多政策的国际比较报告/第一章提示词/主题特性材料检索提示词\n```\n\n拼装输入：\n\n```text\n报告主题：{{topic}}\n主题特性小节标题：{{chapter1_topic_specific_title}}\n知识库名称：{{知识库名称}}\nNotebook ID：{{知识库ID}}\n```\n\n拼装方式：\n\n```text\n【本次输入】\n报告主题：{{topic}}\n检索主题：{{chapter1_topic_specific_title}}\n知识库名称：{{知识库名称}}\nNotebook ID：{{知识库ID}}\n\n【原始提示词】\n{{将第一章主题特性检索原始提示词中的检索主题替换为 chapter1_topic_specific_title}}\n\n【工程化输出要求】\n{{通用检索输出约束}}\n```\n\n输出内容：\n\n```text\n一、检索内容\n……\n\n二、相关文献\n……\n```\n\n## 5. 第二章资料铺料检索\n\n原始提示词：\n\n```text\n多政策的国际比较报告/第二章提示词/第二章所需资料提示词.md\n```\n\n拼装输入：\n\n```text\n报告主题：{{topic}}\n第二章主题：{{chapter2_topic}}\n知识库名称：{{知识库名称}}\nNotebook ID：{{知识库ID}}\n```\n\n拼装方式：\n\n```text\n【本次输入】\n报告主题：{{topic}}\n本次主题：{{chapter2_topic}}\n知识库名称：{{知识库名称}}\nNotebook ID：{{知识库ID}}\n\n【原始提示词】\n{{将第二章资料铺料原始提示词中的【本次主题】替换为 chapter2_topic}}\n\n【工程化输出要求】\n{{通用检索输出约束}}\n```\n\n输出内容：\n\n```text\n一、检索内容\n……\n\n二、相关文献\n……\n```\n", "lines": 195}, {"id": "planning", "title": "构思提示词块", "kind": "构思", "actor": "大模型", "path": "workflow/prompts/planning.md", "summary": "只输出构思产物，用于第一章主题特性定题、第二章定题和第二章维度凝练。", "content": "# 构思功能提示词块\n\n执行者：大模型\n\n目标：只产出构思结果，不写正文。\n\n## 1. 通用构思输出约束\n\n所有构思模块统一追加以下输出约束：\n\n```text\n【工程化输出要求】\n只输出构思产物。\n不要输出正文。\n不要输出写作说明。\n不要输出思考过程。\n不要输出 JSON。\n如果材料或输入不足，请在构思产物中直接标注“材料不足”或“需要人工确认”。\n```\n\n## 2. 第一章主题特性小标题构思\n\n原始提示词：\n\n```text\n多政策的国际比较报告/第一章提示词/主题特性小标题构思提示词\n```\n\n拼装输入：\n\n```text\n报告主题：{{topic}}\n既定同级子主题：顶层设计与实施机制\n```\n\n拼装方式：\n\n```text\n【本次输入】\n报告主题：{{topic}}\n既定同级子主题：顶层设计与实施机制\n\n【原始提示词】\n{{将第一章主题特性构思原始提示词中的【主题】替换为 topic}}\n\n【工程化输出要求】\n{{通用构思输出约束}}\n```\n\n输出内容：\n\n```text\n最终子标题：……\n\n内容驱动理由：……\n\n对称性与正当性提醒：……\n```\n\n## 3. 第二章目的层定题\n\n原始提示词：\n\n```text\n多政策的国际比较报告/第二章提示词/第二部分定题.md\n```\n\n拼装输入：\n\n```text\n报告主题：{{topic}}\n报告结构：第一章讲各国怎么治理这个领域，第二章纵深展开目的层，第三章讲中国对策。\n```\n\n拼装方式：\n\n```text\n【本次输入】\n报告主题：{{topic}}\n报告结构：第一章讲各国怎么治理这个领域，第二章纵深展开目的层，第三章讲中国对策。\n\n【原始提示词】\n{{将第二章定题原始提示词中的大主题替换为 topic}}\n\n【工程化输出要求】\n{{通用构思输出约束}}\n```\n\n输出内容：\n\n```text\n手段层：……\n\n目的层：……\n\n对策落点验证：……\n\n第二章主题：……\n\n为什么这是目的层：……\n\n第一章保留的手段层内容：……\n```\n\n## 4. 第二章维度凝练\n\n原始提示词：\n\n```text\n多政策的国际比较报告/第二章提示词/第二章凝练维度写作模版.md\n```\n\n拼装输入：\n\n```text\n报告主题：{{topic}}\n第二章主题：{{chapter2_topic}}\n第二章检索内容：\n{{chapter2_retrieval_content}}\n第二章相关文献：\n{{chapter2_related_literature}}\n```\n\n拼装方式：\n\n```text\n【本次输入】\n报告主题：{{topic}}\n第二章主题：{{chapter2_topic}}\n第二章检索内容：\n{{chapter2_retrieval_content}}\n第二章相关文献：\n{{chapter2_related_literature}}\n\n【原始提示词】\n{{复制第二章凝练维度写作模板中“第一步——自下而上凝练维度”的任务要求}}\n\n【工程化输出要求】\n{{通用构思输出约束}}\n```\n\n输出内容：\n\n```text\n维度凝练说明：……\n\n最终维度清单：\n1. 维度名称：……\n   维度界定：……\n   聚类依据：……\n   覆盖来源主体：……\n\n可选上一级归类：……\n\n材料不足或需要人工确认：……\n```\n", "lines": 157}, {"id": "writing", "title": "写作提示词块", "kind": "写作", "actor": "大模型", "path": "workflow/prompts/writing.md", "summary": "只输出可直接入稿的正文，不输出说明、思考过程或 JSON，并严格限制材料边界。", "content": "# 写作功能提示词块\n\n执行者：大模型\n\n目标：只产出可直接入稿的正文内容。\n\n## 1. 通用写作输出约束\n\n所有写作模块统一追加以下输出约束：\n\n```text\n【工程化输出要求】\n只输出可直接入稿的正文内容。\n不要输出写作说明。\n不要输出构思过程。\n不要输出审查意见。\n不要输出思考过程。\n不要输出 JSON。\n不得引入外部知识。\n不得补写材料中不存在的国家、机构、文件、年份或政策举措。\n文件名、机构名、年份、举措必须与传入材料保持一致。\n如果材料缺失，不要编造；可以不写该内容，或在必要处标注“材料不足”。\n```\n\n## 2. 第一章顶层设计归类写作\n\n原始提示词：\n\n```text\n多政策的国际比较报告/第一章提示词/顶层设计归类写作提示词\n```\n\n拼装输入：\n\n```text\n报告主题：{{topic}}\n第一章顶层设计检索内容：\n{{chapter1_top_design_retrieval_content}}\n第一章顶层设计相关文献：\n{{chapter1_top_design_related_literature}}\n```\n\n拼装方式：\n\n```text\n【本次输入】\n报告主题：{{topic}}\n第一章顶层设计检索内容：\n{{chapter1_top_design_retrieval_content}}\n第一章顶层设计相关文献：\n{{chapter1_top_design_related_literature}}\n\n【原始提示词】\n{{将第一章顶层设计写作原始提示词中的【主题】替换为 topic}}\n\n【工程化输出要求】\n{{通用写作输出约束}}\n```\n\n输出内容：\n\n```text\n1. 顶层设计的主要类型\n\n……\n\n【分类依据】……\n```\n\n## 3. 第一章实施机制归类写作\n\n原始提示词：\n\n```text\n多政策的国际比较报告/第一章提示词/实施机制归类写作提示词\n```\n\n拼装输入：\n\n```text\n报告主题：{{topic}}\n第一章实施机制检索内容：\n{{chapter1_implementation_retrieval_content}}\n第一章实施机制相关文献：\n{{chapter1_implementation_related_literature}}\n```\n\n拼装方式：\n\n```text\n【本次输入】\n报告主题：{{topic}}\n第一章实施机制检索内容：\n{{chapter1_implementation_retrieval_content}}\n第一章实施机制相关文献：\n{{chapter1_implementation_related_literature}}\n\n【原始提示词】\n{{将第一章实施机制写作原始提示词中的【主题】替换为 topic}}\n\n【工程化输出要求】\n{{通用写作输出约束}}\n```\n\n输出内容：\n\n```text\n2. 实施机制的主要类型\n\n……\n\n【分类依据】……\n```\n\n## 4. 第一章主题特性分维度写作\n\n原始提示词：\n\n```text\n多政策的国际比较报告/第一章提示词/主题特性分维度写作提示词\n```\n\n拼装输入：\n\n```text\n报告主题：{{topic}}\n主题特性小节标题：{{chapter1_topic_specific_title}}\n第一章主题特性检索内容：\n{{chapter1_topic_specific_retrieval_content}}\n第一章主题特性相关文献：\n{{chapter1_topic_specific_related_literature}}\n```\n\n拼装方式：\n\n```text\n【本次输入】\n报告主题：{{topic}}\n本节子标题：{{chapter1_topic_specific_title}}\n第一章主题特性检索内容：\n{{chapter1_topic_specific_retrieval_content}}\n第一章主题特性相关文献：\n{{chapter1_topic_specific_related_literature}}\n\n【原始提示词】\n{{将第一章主题特性写作原始提示词中的本节子标题替换为 chapter1_topic_specific_title，并填入 第一章主题特性检索内容}}\n\n【工程化输出要求】\n{{通用写作输出约束}}\n```\n\n输出内容：\n\n```text\n{{chapter1_topic_specific_title}}\n\n……\n```\n\n## 5. 第二章正文写作\n\n原始提示词：\n\n```text\n多政策的国际比较报告/第二章提示词/第二章凝练维度写作模版.md\n```\n\n拼装输入：\n\n```text\n报告主题：{{topic}}\n第二章主题：{{chapter2_topic}}\n第二章维度凝练产物：\n{{chapter2_dimension_plan}}\n第二章检索内容：\n{{chapter2_retrieval_content}}\n第二章相关文献：\n{{chapter2_related_literature}}\n```\n\n拼装方式：\n\n```text\n【本次输入】\n报告主题：{{topic}}\n第二章主题：{{chapter2_topic}}\n第二章维度凝练产物：\n{{chapter2_dimension_plan}}\n第二章检索内容：\n{{chapter2_retrieval_content}}\n第二章相关文献：\n{{chapter2_related_literature}}\n\n【原始提示词】\n{{复制第二章凝练维度写作模板中“第二步——按以下范式撰写正文”的任务要求}}\n\n【工程化输出要求】\n{{通用写作输出约束}}\n```\n\n输出内容：\n\n```text\n{{chapter2_topic}}\n\n……\n\n来源清单：\n……\n```\n", "lines": 211}, {"id": "ch3", "title": "第三章政策建议提示词", "kind": "写作", "actor": "大模型", "path": "workflow/prompts/ch3_writing.md", "summary": "读取第一章和第二章成文，按照“从国际经验中来、到中国问题中去”生成政策建议。", "content": "# 第三章政策建议写作提示词\n\n# 角色\n你是一位资深政策研究专家，擅长在国际比较研究的基础上，为中国撰写\n面向决策层的政策建议。\n\n# 任务\n基于本报告前文的研究内容，撰写最后一章“政策建议”（对策建议）。\n\n# 需要参考的内容\n1. 【前文的国际比较与经验】通读并提炼前文各章对主要国家/经济体做法的\n   比较分析，识别出可供借鉴的共性经验、典型路径和发展趋势。\n2. 【中国现状与差距】结合中国在该领域的发展阶段、制度特征与现实短板，\n   判断哪些国际经验可借鉴、哪些需结合国情调整。\n3. 【国家战略导向】对接中国相关的国家战略目标与上位规划，使建议在方向上\n   与国家战略保持一致。\n\n# 写作逻辑\n- 不要照搬国际做法，而是“从国际经验中来、到中国问题中去”：每条建议都应\n  能在前文的比较分析中找到依据，同时落脚于解决中国实际问题。\n- 建议的条数和主题由前文内容自然提炼，通常覆盖前文讨论的几条主线\n  （如顶层设计、能力建设、人才培养、风险治理等），做到逐章呼应、不遗漏、\n  不重复。\n- 每条建议遵循“提出方向 + 给出可操作举措”的结构，避免空泛表态。\n\n# 文体与格式要求\n1. 开头用一两句话点明建议的总体定位与目标（为何提、要达成什么）。\n2. 分条列出建议，每条以加粗领起句开头（如“一是……”“二是……”），\n   领起句用“动宾短语 + 核心举措”句式概括该条要旨，随后用一段话展开。\n3. 语言庄重凝练，符合政策研究报告文体；多用“建议……”“鼓励……”\n   “探索建立……”“加快构建……”等政策性表述；不用第一人称、不口语化。\n4. 篇幅与详略程度与前文各章相称。\n", "lines": 33}, {"id": "full-review", "title": "全文内容结构审查提示词", "kind": "审查", "actor": "大模型", "path": "workflow/prompts/fulltext_review.md", "summary": "基于完整报告和专家模板，审查结构、逻辑、章节衔接和政策建议落点。", "content": "# 全文内容与结构审查提示词\n\n## 角色\n\n你是一位资深政策研究报告审稿专家，熟悉国际比较研究、教育政策分析和面向决策层的政策建议写作。\n\n## 任务\n\n基于传入的完整报告原文和固定审查意见模板，对全文的内容和结构进行审查。\n\n## 审查边界\n\n1. 只审查文章内容、结构、论证逻辑、章节衔接和政策建议落点。\n2. 不处理引用编号、参考文献格式、脚注尾注格式、文件来源格式等引用类问题。\n3. 不依据外部知识补充事实，不要求新增未在原文或检索材料中出现的国外案例。\n4. 审查意见要能指导后续全文修改，而不是泛泛评价。\n\n## 审查重点\n\n1. 全文主题是否稳定，是否围绕同一政策问题展开。\n2. 章节功能是否清楚，第一章、第二章、第三章之间是否递进。\n3. 国际比较是否形成可比维度，而不是材料堆砌。\n4. 论证链条是否形成“国际经验-中国问题-政策建议”的转化关系。\n5. 政策建议是否回应前文，是否具有可操作性。\n6. 标题、小标题、段落衔接和总分关系是否顺畅。\n7. 文体是否符合政策研究报告要求。\n\n## 输出方式\n\n请按自然语言审查报告输出，包括：\n\n1. 总体判断。\n2. 主要问题清单。\n3. 按章节列出的修改建议。\n4. 可直接指导全文修改的优先级建议。\n", "lines": 36}, {"id": "full-rewrite", "title": "全文内容结构修改提示词", "kind": "修改", "actor": "大模型", "path": "workflow/prompts/fulltext_rewrite.md", "summary": "根据全文审查报告改稿，只输出修改后的完整报告正文，不处理引用格式问题。", "content": "# 全文内容与结构修改提示词\n\n## 角色\n\n你是一位资深政策研究报告改稿专家，擅长在不改变事实边界的前提下，优化国际比较报告的结构、逻辑和政策表达。\n\n## 任务\n\n基于传入的完整报告原文、固定审查意见模板和本次审查报告，对全文进行修改，输出一版可直接交付的完整报告正文。\n\n## 修改边界\n\n1. 不新增未经原文或 知识库检索材料支撑的国外政策事实。\n2. 不处理引用编号、参考文献格式、脚注尾注格式、文件来源格式等引用类问题。\n3. 可以调整标题、小标题、段落顺序、总起句、过渡句和政策建议表述。\n4. 可以合并重复段落，补足必要的逻辑过渡，但不能凭空增加政策文件、年份、机构和案例。\n5. 第三章必须体现“从国际经验中来、到中国问题中去”的转化逻辑。\n\n## 修改重点\n\n1. 让全文主题更集中。\n2. 让章节关系更清晰。\n3. 让比较维度更稳定。\n4. 让前文经验与后文建议形成对应。\n5. 让语言更符合政策研究报告文体。\n\n## 输出方式\n\n只输出修改后的完整报告正文，不输出修改说明、审查意见或过程性内容。\n", "lines": 30}, {"id": "review-template", "title": "专家审查意见固定模板", "kind": "专家模板", "actor": "审查 Agent", "path": "workflow/review_templates/content_structure_review.md", "summary": "由人类专家审阅意见蒸馏而成，覆盖事实核验、标题结构、分类边界、比较判断、政策建议等维度。", "content": "# 政策比较报告全文内容与结构审查模板\n\n## 一、模板用途\n\n本模板用于审查各类主题的国际政策比较报告，重点检查全文的内容、结构、逻辑、比较判断和政策建议质量。\n\n本模板不审查以下事项：\n\n- 文献引用编号。\n- 脚注、尾注、参考文献格式。\n- 文件来源、PDF 文件名、资料来源呈现方式。\n- 排版、页眉页脚、字体字号等格式问题。\n\n## 二、全文审核 agent 的角色\n\n你是一名资深政策研究审稿人，负责对国际政策比较报告进行全文内容与结构审查，并在不突破原文事实材料边界的前提下提出修改意见或完成正文优化。\n\n审查时应坚持以下原则：\n\n- 以“国际经验-中国问题-政策建议”为主线。\n- 先判断结构和论证是否成立，再处理语言表达。\n- 不把材料罗列等同于比较研究。\n- 不把国外做法简单照搬为中国建议。\n- 对事实不确定的内容标记“需核验”，不要擅自新增未经材料支持的事实。\n\n## 三、输入内容\n\n审核时应读取：\n\n1. 待审查的完整报告正文。\n2. 本审查模板。\n\n如果工作流同时提供各章节草稿、检索材料或原始提示词，可作为辅助参考；但最终审查对象应以完整报告正文为准。\n\n## 四、审查维度\n\n### 1. 事实准确性与案例核验\n\n检查要点：\n\n- 报告中的国家、机构、政策文件、发布时间、政策性质是否准确。\n- 是否存在把指南、框架、行动计划、战略、行政令、课程标准等不同类型文件混同的问题。\n- 是否存在把国际组织文件误写为国家政策，或把外部参考框架误写为国内顶层设计的问题。\n- 是否存在案例被过度概括、误归类或拔高的问题。\n\n处理要求：\n\n- 对明显可疑的事实标记“需核验”。\n- 不在没有材料支撑的情况下新增具体事实。\n- 对政策文件性质作必要辨析。\n\n### 2. 标题体系与章节结构\n\n检查要点：\n\n- 一级标题、二级标题、小标题是否层级清楚。\n- 标题是否准确概括本章、本节的真实内容。\n- 是否存在旧标题与新标题叠加、标题过大、标题与正文不匹配的问题。\n- 每章开头是否有总起段，说明本章研究对象、比较维度和论证任务。\n- 各章结构是否相互协调，避免一章分类、一章罗列、一章泛泛建议而缺少整体设计。\n\n处理要求：\n\n- 必要时调整标题，使标题更具体、更能承载论证任务。\n- 缺少总起段时，应补充简短总起。\n- 标题不能只追求整齐，应服务于报告逻辑。\n\n### 3. 分类边界与比较维度\n\n检查要点：\n\n- 分类依据是否清楚。\n- 同一组分类对象是否处于同一层级。\n- 国家战略、部门指南、国际组织框架、专业机构倡议是否被不恰当地并列。\n- 分类之间是否重叠、交叉或“不对账”。\n- 每一类是否说明了核心特征，而不是只把材料装进预设框架。\n\n处理要求：\n\n- 对层级不同的对象，应重新命名或改为补充说明。\n- 对分类重叠的内容，应合并、拆分或调整边界。\n- 每类开头应明确“这一类是什么、为什么这样分、代表什么政策路径”。\n\n### 4. 比较判断力与政策性质辨析\n\n检查要点：\n\n- 文本是否只客观罗列各国材料，缺少研究者判断。\n- 是否指出不同国家做法之间的差异、强弱、适用边界和制度原因。\n- 是否说明某些经验为什么更有参考价值。\n- 是否在关键案例后给出必要判断，而不是只复述政策文件内容。\n\n处理要求：\n\n- 在重要案例后增加简短判断句。\n- 对典型机制作出专业辨析，例如“严格意义上属于操作指南，而非国家战略规划”。\n- 比较时应说明“相同点、不同点、原因和启示”。\n\n### 5. 段落组织与逻辑衔接\n\n检查要点：\n\n- 段落是否过长，是否在一个段落中塞入过多案例或多个观点。\n- 段落之间是否具有递进、并列、转折或因果关系。\n- 分条内容是否只是清单罗列，缺少内在顺序。\n- 章节之间是否存在跳跃、重复或断裂。\n\n处理要求：\n\n- 对过长段落进行拆分。\n- 补充必要过渡句，点明前后关系。\n- 每节尽量形成“提出观点-展开案例-比较判断-小结过渡”的链条。\n- 分条建议应体现由目标、机制、保障到实施的合理顺序。\n\n### 6. 案例取舍与信息密度\n\n检查要点：\n\n- 是否逐一展开所有国家材料，导致信息过载。\n- 案例是否服务于本节观点。\n- 是否存在多个案例表达同一意思但没有比较增量的问题。\n- 是否缺少最能说明问题的代表性机制。\n\n处理要求：\n\n- 保留能支撑核心判断的代表性案例。\n- 对同类案例可合并概括，对差异性案例应突出其不同路径。\n- 案例不是越多越好，应以解释力和比较价值为准。\n\n### 7. 语言精炼度与政策文体\n\n检查要点：\n\n- 是否存在长句过多、修饰词密集、表达拖沓的问题。\n- 是否高频使用“系统性、全方位、深入、有效、持续、全面”等不增加信息量的修饰词。\n- 是否过度使用“构建、完善、强化、推动”等抽象动词。\n- 是否存在口语化、宣传化或明显 AI 味表达。\n\n处理要求：\n\n- 删除不增加实质信息的修饰词。\n- 将长句拆成信息清楚的短句。\n- 优先使用具体政策动作，如“发布、设立、试点、授权、监测、评估、修订、纳入、建立清单、明确标准”。\n- 语言应庄重、凝练、准确，符合政策研究报告文体。\n\n### 8. 总结段与小结段的提炼力度\n\n检查要点：\n\n- 总结是否只是重复常识性判断。\n- 小结是否回扣本节材料中最有解释力的发现。\n- 是否能指出哪类机制更关键、哪一国经验更具参考价值、哪些经验需要结合国情调整。\n- 是否存在“不看正文也能写出类似结论”的空泛总结。\n\n处理要求：\n\n- 总结段要提炼前文真正产生的发现。\n- 避免泛泛说“各国路径不同、值得借鉴”。\n- 应明确比较研究带来的新增认识。\n\n### 9. 政策建议的前文回应与操作性\n\n检查要点：\n\n- 政策建议是否从前文比较自然推出。\n- 每条建议是否能对应前文的国家经验、机制类型、风险问题或能力短板。\n- 是否存在脱离前文、泛泛提出“加强统筹、完善机制、强化保障”的问题。\n- 建议之间是否重复，是否可以合并。\n- 是否真正做到“从国际经验中来、到中国问题中去”。\n\n处理要求：\n\n- 每条建议应遵循“国际经验依据-中国现实问题-具体政策动作”的逻辑。\n- 建议要点应具体，避免只写方向口号。\n- 相近建议应合并，弱建议应删除或并入其他条目。\n- 不照搬国外做法，应说明结合中国制度环境后的调整方式。\n\n## 五、审查输出要求\n\n全文审核 agent 应输出两类结果。\n\n第一类：审查报告。\n\n建议结构：\n\n```markdown\n# 全文内容与结构审查报告\n\n## 一、总体判断\n\n概括全文是否具备完整结构、清晰比较逻辑和政策建议闭环。\n\n## 二、主要问题\n\n按严重程度列出问题。每个问题说明：\n\n- 问题位置。\n- 问题表现。\n- 修改方向。\n\n## 三、可保留的优点\n\n简要说明不需要大改的部分。\n\n## 四、修改建议\n\n给出标题、结构、段落、政策建议和语言层面的具体修改建议。\n```\n\n第二类：修改后全文。\n\n修改要求：\n\n- 保留原报告的基本事实材料边界。\n- 可以调整标题、小标题、段落顺序、过渡句、总起句和政策建议表达。\n- 可以删减重复、空泛、拖沓表达。\n- 可以补充逻辑判断句，但不得新增未经材料支持的具体事实。\n- 不处理引用编号、脚注尾注、文献格式和文件来源格式问题。\n\n## 六、质量底线\n\n审查和修改后的报告至少应满足以下底线：\n\n1. 全文主题一致，不偏离给定政策主题。\n2. 章节功能清楚，第一章、第二章、第三章之间有递进关系。\n3. 分类依据清楚，比较对象不混层。\n4. 案例服务观点，不堆砌材料。\n5. 关键位置有研究判断，不只是中性复述。\n6. 政策建议回应前文，并落到中国现实问题。\n7. 语言庄重凝练，避免明显 AI 味和空泛表态。\n", "lines": 231}];
+    const grid = document.querySelector('#promptGrid');
+    const detailTitle = document.querySelector('#detailTitle');
+    const detailContent = document.querySelector('#detailContent');
+    const lockNote = document.querySelector('#lockNote');
+    let pinnedId = null;
+
+    function renderCards() {
+      grid.innerHTML = prompts.map(item => `
+        <article class="prompt-card" data-id="${item.id}" tabindex="0">
+          <div class="top">
+            <h3>${item.title}</h3>
+            <span class="pill">${item.kind}</span>
+          </div>
+          <p class="summary">${item.summary}</p>
+          <div class="meta">${item.actor}<br>${item.path}<br>${item.lines} 行</div>
+        </article>
+      `).join('');
+    }
+
+    function setDetail(item, pinned = false) {
+      detailTitle.textContent = item.title;
+      detailContent.textContent = item.content;
+      lockNote.textContent = pinned ? '已固定，点击其他卡片切换' : '悬停预览，点击固定';
+      document.querySelectorAll('.prompt-card').forEach(card => {
+        card.classList.toggle('active', card.dataset.id === item.id && pinned);
+      });
+    }
+
+    renderCards();
+
+    grid.addEventListener('mouseover', event => {
+      const card = event.target.closest('.prompt-card');
+      if (!card || pinnedId) return;
+      const item = prompts.find(entry => entry.id === card.dataset.id);
+      if (item) setDetail(item, false);
+    });
+
+    grid.addEventListener('focusin', event => {
+      const card = event.target.closest('.prompt-card');
+      if (!card || pinnedId) return;
+      const item = prompts.find(entry => entry.id === card.dataset.id);
+      if (item) setDetail(item, false);
+    });
+
+    grid.addEventListener('click', event => {
+      const card = event.target.closest('.prompt-card');
+      if (!card) return;
+      const item = prompts.find(entry => entry.id === card.dataset.id);
+      if (!item) return;
+      pinnedId = item.id;
+      setDetail(item, true);
+    });
+  </script>
+</body>
+</html>

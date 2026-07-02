@@ -1,0 +1,98 @@
+# ============================================================================
+# 报告任务配置模板 (task_config.template.yaml)
+# ----------------------------------------------------------------------------
+# 给「驱动 agent」填写的任务单。填好后由驱动 agent 翻译成命令行调用两套引擎之一。
+# 值均为占位示例，请按实际任务替换。注释标注 [必填]/[可选] + 含义 + 翻译成的命令行参数。
+#
+# 两套引擎：
+#   strategic —— 国际比较类内参（战略响应/经验借鉴/趋势研判）。多体例、带审稿回环、
+#               判断纪律注入。入口：strategic_response_workflow/workflow/runner.py
+#   root      —— 通用国际政策比较报告 MVP（单流程、NotebookLM+DeepSeek）。
+#               入口：workflow/runner.py
+# ============================================================================
+
+# [必填] 引擎选择：strategic | root（二选一）
+#   strategic：需要按内参体例、带审稿/判断纪律的国际比较报告（推荐用于正式内参）。
+#   root：快速产出一篇通用国际政策比较报告的 MVP，流程更轻。
+#   —— 决定驱动 agent 调用哪个 runner.py，与下方使用哪一段配置。
+engine: strategic
+
+# ----------------------------------------------------------------------------
+# strategic 段：仅当 engine=strategic 时读取
+# 入口：python strategic_response_workflow/workflow/runner.py ...
+# ----------------------------------------------------------------------------
+strategic:
+  # [必填] 报告体例，三选一（对应 strategic_response_workflow/report_modules/ 下目录）：
+  #   experience_response —— 「国际经验与启示」：梳理某国做法→提炼可借鉴经验→对华启示。
+  #   strategic_response  —— 「战略风险预警/战略响应」：研判外部战略动向→风险→中国应对。
+  #   trend_review        —— 「趋势研判/机制综述」：跨国横扫某议题演进机制与趋势。
+  #   —— 翻译成 --report-type <值>
+  report_type: strategic_response
+
+  # [必填] 报告主题。示例：人工智能+教育
+  #   —— 翻译成 --topic "<值>"
+  topic: 人工智能+教育
+
+  # [必填] 目标国家/对象。示例：美国
+  #   —— 翻译成 --target-country "<值>"
+  target_country: 美国
+
+  # [必填] 战略/政策领域。示例：基础教育数字化
+  #   —— 翻译成 --strategy-domain "<值>"
+  strategy_domain: 基础教育数字化
+
+  # [可选] 中国应对聚焦点，缺省为「中国应对策略」。示例：中国教育数字化战略行动
+  #   —— 翻译成 --china-response-focus "<值>"；留空则用引擎默认值
+  china_response_focus: 中国教育数字化战略行动
+
+  # [必填] NotebookLM 知识库名称（须与 NotebookLM 里已建好的 notebook 名一致）。
+  #   示例：The Digital Promise AI Literacy Framework
+  #   —— 翻译成 --notebook-name "<值>"
+  #   注意：若 material_source=reuse 或 web-pack，见文末 material_source 说明。
+  notebook_name: The Digital Promise AI Literacy Framework
+
+  # [可选] 审稿方式：inline | handoff，缺省 inline。
+  #   inline   —— 同后端 LLM 自审，一次跑到底（默认）。
+  #   handoff  —— 跑到审稿步暂停，交外部 agent 审稿后用 --resume <run-id> 续跑。
+  #   —— 翻译成 --reviewer <值>
+  reviewer: inline
+
+  # [可选] 复用已有 run 的检索产物（retrieval_outputs），跳过 NotebookLM 重新检索。
+  #   填某次 run 的 run-id（如 run-20260701-101500-ab12cd34）；不复用则留空/删除本行。
+  #   —— 翻译成 --reuse-materials-run <run-id>
+  reuse_materials_run:
+
+  # [可选] 生成/审稿最大迭代轮数，缺省 2（引擎内部至少取 1）。
+  #   —— 翻译成 --max-iterations <整数>
+  max_iterations: 2
+
+# ----------------------------------------------------------------------------
+# root 段：仅当 engine=root 时读取
+# 入口：python workflow/runner.py ...
+# ----------------------------------------------------------------------------
+root:
+  # [必填] 报告主题。示例：人工智能+教育
+  #   —— 翻译成 --topic "<值>"（root 引擎中 --topic 为必填）
+  topic: 人工智能+教育
+
+  # [必填] NotebookLM 知识库名称（root 引擎中 --notebook-name 为必填）。
+  #   示例：The Digital Promise AI Literacy Framework
+  #   —— 翻译成 --notebook-name "<值>"
+  notebook_name: The Digital Promise AI Literacy Framework
+
+  # [可选] 复用已有 run 的 retrieval_outputs，跳过 NotebookLM（盲跑/同料对比用）。
+  #   填 run-id；不复用则留空/删除本行。
+  #   —— 翻译成 --reuse-materials-run <run-id>
+  reuse_materials_run:
+
+# ----------------------------------------------------------------------------
+# material_source 说明块：材料从哪来（三选一，指导上面 notebook_name / reuse 怎么填）
+#   notebooklm —— 现查：确保 NotebookLM 里已有对应 notebook，把它的名字填到
+#                 notebook_name；不填 reuse_materials_run。引擎会实时检索。
+#   reuse      —— 复用：不重新检索，填 reuse_materials_run 为某次已完成 run 的 run-id；
+#                 notebook_name 仍需填（占位/与原 run 一致即可，检索会被跳过）。
+#   web-pack   —— 外部材料包：先把网络素材整理进一个 NotebookLM notebook，再按
+#                 notebooklm 方式填 notebook_name；本工作流不直接抓网页，
+#                 素材需先落到 NotebookLM。
+# ----------------------------------------------------------------------------
+material_source: notebooklm

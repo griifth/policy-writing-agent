@@ -1,0 +1,13 @@
+# Python 第三方依赖（本项目实际用到的）
+#
+# 说明：
+# - notebooklm CLI（teng-lin/notebooklm-py）是【独立 CLI 工具】，不通过本文件安装。
+#   请用 pipx 单独安装：pipx install "notebooklm-py[browser]"
+# - pandoc 是【外部二进制】（文档转换用），不是 Python 包，需自行安装（如 brew install pandoc）。
+#
+# 代码核对结论：HTTP 调用未使用 urllib，也未使用 requests/httpx；
+# DeepSeek/兼容端点统一通过 openai SDK（from openai import OpenAI）调用。
+# 除下列两个第三方包外，其余 import 均为 Python 标准库。
+
+PyYAML>=6.0
+openai>=1.0

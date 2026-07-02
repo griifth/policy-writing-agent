@@ -1,0 +1,19 @@
+# 跨平台一致性：默认对文本自动识别，并统一用 LF 换行，避免 Windows/macOS 混用导致的 diff 噪声
+* text=auto eol=lf
+
+# 文本类：显式强制 LF，保证脚本/文档/配置在各平台落地换行一致
+*.py    text eol=lf
+*.md    text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.txt   text eol=lf
+*.json  text eol=lf
+
+# 二进制类：禁止换行/编码转换与 diff，避免文件被 Git 破坏
+*.docx  binary
+*.doc   binary
+*.pdf   binary
+*.zip   binary
+*.png   binary
+*.jpg   binary
+*.xlsx  binary
