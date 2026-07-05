@@ -64,6 +64,7 @@ class Config:
     reviewer: str = "inline"
     review_scope: str = "style_and_expression"
     style_subtype: str = "auto"
+    audience_level: str | None = None
 
 
 class ReviewHandoff(Exception):
@@ -291,6 +292,7 @@ class StrategicResponsePipeline:
         "precedent_check": ("reviewers/precedent_check_scope.md", None),
         "jiaokeyuan_final_review": ("reviewers/jiaokeyuan_review_scope.md", "policy_style_dna_snapshot"),
         "reasoning_compliance": ("reasoning_dna/review_scope.md", "reasoning_dna_snapshot"),
+        "audience_alignment": ("reviewers/audience_alignment_scope.md", None),
     }
 
     def _existing_relpaths(self, subdir: str) -> list[str]:
@@ -402,6 +404,7 @@ class StrategicResponsePipeline:
                 "max_iterations": config.max_iterations,
                 "reviewer": config.reviewer,
                 "review_scope": config.review_scope,
+                "audience_level": config.audience_level,
             },
         }
         self._write("run_state.json", json.dumps(state, ensure_ascii=False, indent=2))
@@ -462,6 +465,8 @@ class StrategicResponsePipeline:
             reviewer=args.reviewer,
             review_scope=args.review_scope,
             style_subtype=args.style_subtype,
+            # 老 run 的 input.yaml 无此字段 / 写作空串 → 兼容为 None（不注入）
+            audience_level=data.get("audience_level") or None,
         )
         pipeline = cls(config, run_id=run_id)
         pipeline.continue_mode = True
@@ -487,6 +492,7 @@ class StrategicResponsePipeline:
         self._copy_policy_style_dna_snapshot()
         self._copy_reasoning_dna_snapshot()
         self._copy_institution_profile_snapshot()
+        self._copy_audience_profile_snapshot()
 
         self._write(
             "input.yaml",
@@ -500,6 +506,7 @@ class StrategicResponsePipeline:
                     f'china_response_focus: "{self.config.china_response_focus}"',
                     f'llm_provider: "{self.config.llm_provider}"',
                     f'reuse_materials_run: "{self.config.reuse_materials_run or ""}"',
+                    f'audience_level: "{self.config.audience_level or ""}"',
                 ]
             ),
         )
@@ -562,6 +569,7 @@ class StrategicResponsePipeline:
             ]
         )
         prompt = self._with_institution_profile(prompt)
+        prompt = self._with_audience_profile(prompt)
         self._write("generated_prompts/task_redefinition.md", prompt)
         self._ask_llm(prompt, "judgment_outputs/task_redefinition.md")
 
@@ -620,6 +628,7 @@ class StrategicResponsePipeline:
         )
         prompt = self._with_reasoning_dna(prompt, "plan_article")
         prompt = self._with_institution_profile(prompt)
+        prompt = self._with_audience_profile(prompt)
         self._write("generated_prompts/planning.md", prompt)
         self._ask_llm(prompt, "planning_outputs/article_plan.md")
 
@@ -643,6 +652,7 @@ class StrategicResponsePipeline:
         )
         prompt = self._with_reasoning_dna(prompt, "build_suggestion_pool")
         prompt = self._with_institution_profile(prompt)
+        prompt = self._with_audience_profile(prompt)
         self._write("generated_prompts/suggestion_pool.md", prompt)
         self._ask_llm(prompt, "suggestion_outputs/suggestion_pool.md")
 
@@ -662,6 +672,7 @@ class StrategicResponsePipeline:
         )
         prompt = self._with_reasoning_dna(prompt, "prioritize_policy_options")
         prompt = self._with_institution_profile(prompt)
+        prompt = self._with_audience_profile(prompt)
         self._write("generated_prompts/policy_priority.md", prompt)
         self._ask_llm(prompt, "suggestion_outputs/policy_priority.md")
 
@@ -692,6 +703,7 @@ class StrategicResponsePipeline:
             ]
         )
         prompt = self._with_institution_profile(prompt)
+        prompt = self._with_audience_profile(prompt)
         self._write("generated_prompts/writing.md", prompt)
         self._ask_llm(prompt, "drafts/current_article.md")
         self._copy("drafts/current_article.md", "final_article.md")
@@ -1001,6 +1013,34 @@ class StrategicResponsePipeline:
         if path.is_file():
             shutil.copyfile(path, self.run_dir / "institution_profile_snapshot.md")
 
+    def _audience_profile_text(self) -> str:
+        """读取所选读者层级 profile（S2 三档之一）；未传 --audience-level 或文件缺失则空串（gated）。"""
+        level = self.config.audience_level
+        if not level:
+            return ""
+        path = WORKFLOW_ROOT / "audience_profiles" / f"{level}.md"
+        return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+    def _with_audience_profile(self, prompt: str) -> str:
+        """把读者层级 profile（判断高度 + 对策粒度 + 语气详略）追加到 prompt 末尾；未选层级则原样返回。
+
+        与 _with_institution_profile 正交叠加：机构 profile 管建议落在哪个教育域，
+        本 profile 管判断与对策落到哪个读者高度。
+        """
+        block = self._audience_profile_text()
+        if not block:
+            return prompt
+        return prompt + "\n\n## 读者层级站位（必须遵守）\n\n" + block
+
+    def _copy_audience_profile_snapshot(self) -> None:
+        """有 --audience-level 才把该档 profile 快照进 run 目录（gated，缺省零产物）。"""
+        level = self.config.audience_level
+        if not level:
+            return
+        path = WORKFLOW_ROOT / "audience_profiles" / f"{level}.md"
+        if path.is_file():
+            shutil.copyfile(path, self.run_dir / "audience_profile_snapshot.md")
+
     def _copy_reasoning_dna_snapshot(self) -> None:
         """把本次模块的刀 + 共享 conventions + shared_schema 复制到 run 目录，便于复查。"""
         target = self.run_dir / "reasoning_dna_snapshot"
@@ -1164,11 +1204,13 @@ def parse_args() -> argparse.Namespace:
             "precedent_check",
             "jiaokeyuan_final_review",
             "reasoning_compliance",
+            "audience_alignment",
         ],
         help=(
             "handoff 审稿范围；默认只审文风与表述；"
             "jiaokeyuan_final_review=教科院终审判分（quality_rubric 六维），"
-            "reasoning_compliance=推理对账（对照 judgment_outputs 降级记录）"
+            "reasoning_compliance=推理对账（对照 judgment_outputs 降级记录），"
+            "audience_alignment=读者站位互校验（只审站位不审事实，配合 --audience-level）"
         ),
     )
     modules_root = WORKFLOW_ROOT / "report_modules"
@@ -1198,6 +1240,12 @@ def parse_args() -> argparse.Namespace:
         default="auto",
         choices=["auto", "a", "b"],
         help="policy_style_dna 子型路由：auto=按 report_type 自动（strategic_response/experience_response→a 战略建议，trend_review→b 机制综述）；a/b=强制覆盖",
+    )
+    parser.add_argument(
+        "--audience-level",
+        default=None,
+        choices=["national_leader", "moe_leadership", "bureau"],
+        help="读者层级站位：national_leader=国家领导（宏观战略）/ moe_leadership=部党组（中观制度）/ bureau=司局（微观操作）；缺省不注入、prompt 零变化",
     )
     parser.add_argument(
         "--continue",
@@ -1244,6 +1292,7 @@ def main() -> int:
         reviewer=args.reviewer,
         review_scope=args.review_scope,
         style_subtype=args.style_subtype,
+        audience_level=args.audience_level,
     )
     StrategicResponsePipeline(config).run()
     return 0
