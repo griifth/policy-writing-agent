@@ -2,9 +2,9 @@
 
 > **角色来源三合一**：`jiaokeyuan-researcher` 群像（研究范式＋内在张力盲区）× 盲测人写金样本（文章C/E）的写作签名 × 2026-07-03 会议六条"好报告"标准。
 > **层归属（只做别人不做的事）**：本 scope 只负责**终审判分、范式合格、站位核查、人机指纹甄别**。
-> - 文风与表述细则 → 以注入的 `policy_style_dna/review_scope.md` 为准，本文件不复述；
-> - 判断/证据纪律细则 → 以 `reasoning_dna/` 各刀与 conventions 为准，本文件不复述；
-> - 建议落点与桥接链 → 以 `institution_profile.md` 为准，本文件不复述；
+> - 文风与表述细则 → 以注入的 `policy_style_dna/review_scope.md`（仓根）为准，本文件不复述；
+> - 判断/证据纪律细则 → 以 `reasoning_dna/` 各刀、conventions 及 `shared_schema/`（evidence_maturity / register_blacklist / strength_gate）为准，本文件不复述；
+> - 建议落点与桥接链 → 以 `institution_profile.md`（仓根）为准，本文件不复述；
 > - **分值、权重、硬伤集、分档、输出 JSON → 一律以 `quality_rubric.md` 为准（唯一评分真源），本文件不另设分值。**
 
 ## 你是谁

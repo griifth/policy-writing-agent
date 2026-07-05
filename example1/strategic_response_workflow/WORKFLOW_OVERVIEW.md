@@ -79,7 +79,7 @@
 两种审稿者，**契约相同、可换件**：
 - **inline**（默认/原行为）：同后端 LLM 自审，模块 `prompts/review.md` + policy_style_dna(review)。
 - **handoff**（`--reviewer handoff`）：跑到这**暂停**，写交接指令（`reviewers/instruction_template.md` 骨架 + **触发范围对应 DNA 的 `review_scope.md`** 决定“审什么”）+ `run_state.json`，退出；在场 agent 派**异源子 agent** 按该 DNA 审、写报告，再 `--resume` 续跑。
-- **门槛 `_review_reaches_standard`**：正则扫报告——出现“未达到/硬伤/对象错配/必须重写”等判不达标 → **revise_article**（模块 `prompts/revision.md` + policy_style_dna(revision)）改稿，回到审查；达标则定稿。
+- **评分门 `_parse_review_verdict`**：解析审查报告末尾的 ```json 评分块（契约=`quality_rubric.md` 第五节，六维加权百分制）——`grade=="1"`，或 `total≥85` 且硬伤为空 → 达标定稿（任一硬伤 H1–H6 命中即 3 档，不看总分）；未达标 → **revise_article**（模块 `prompts/revision.md` + policy_style_dna(revision)）带审查报告改稿，回到审查；到 `--max-iterations` 上限仍未过门 → 停止返修、带病定稿，每轮 grade/total/硬伤与停机原因落盘 `review_gate_result.json`。报告无 JSON 或解析失败（如外部 handoff 老报告）→ 回退按「总体结论：达到/基本达到/未达到」行匹配，老交接路径不崩。
 - **为什么**：① 异源审稿破“同模型把自己缺点当优点”的共享盲区；② 审稿“审什么”随 DNA 走——文风范围读 policy_style_dna、推理对账范围读 reasoning_dna；③ 迭代门槛防“审查变形式确认”。
 
 ### 阶段 6 · 收尾　〔引擎 + policy_style_dna〕

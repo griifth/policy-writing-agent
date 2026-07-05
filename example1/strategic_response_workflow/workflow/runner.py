@@ -163,17 +163,107 @@ class StrategicResponsePipeline:
         return bool(markers) and all((self.run_dir / m).exists() for m in markers)
 
     def _review_revise_loop(self, start_index: int) -> None:
-        """审查—修改：审一遍、按审查报告改一遍即定稿（不设达标正则门）。
+        """审查—修改评分门循环：达标即出，不达标带审查意见返修，max_iterations 兜底。
 
+        每轮判定见 _parse_review_verdict（rubric JSON 优先，无 JSON 回退老「总体结论」行）。
+        到上限仍未过门 → 不再返修、带病定稿，全程留痕 review_gate_result.json。
         handoff 模式下报告缺失时，_do_review 抛 ReviewHandoff 暂停，--resume 后续跑。
         """
 
-        self._do_review(start_index)
-        self._run_task(
-            f"revise_article.iter{start_index}",
-            lambda i=start_index: self._revise_article(i),
+        last_index = start_index + max(1, self.config.max_iterations) - 1
+        iterations: list[dict] = []
+        passed = False
+        stopped_reason = "max_iterations_reached"
+        for index in range(start_index, last_index + 1):
+            self._do_review(index)
+            verdict = self._parse_review_verdict(index)
+            iterations.append(verdict)
+            if verdict["passed"]:
+                passed = True
+                stopped_reason = "review_passed"
+                break
+            if index == last_index:
+                stopped_reason = "max_iterations_reached"  # 到上限：不再改，带病定稿但留痕
+                break
+            self._run_task(
+                f"revise_article.iter{index}",
+                lambda i=index: self._revise_article(i),
+            )
+        self._write(
+            "review_gate_result.json",
+            json.dumps(
+                {
+                    "passed": passed,
+                    "stopped_reason": stopped_reason,
+                    "max_iterations": self.config.max_iterations,
+                    "iterations": iterations,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
         )
         self._copy("drafts/current_article.md", "final_article_reviewed.md")
+
+    def _parse_review_verdict(self, index: int) -> dict:
+        """解析第 index 轮审查报告 → 评分门判定（quality_rubric.md 第五节契约）。
+
+        优先抽报告末尾最后一个 ```json 围栏评分块：grade=="1"，或 total>=85 且硬伤为空 → 过门。
+        无 JSON / 解析失败 → 回退兼容老报告：按行匹配「总体结论：达到/基本达到/未达到」
+        （handoff 老路径外部 agent 只给结论行也能走通）；两者皆无 → 不过门并记 parse_error。
+        """
+
+        report_rel = f"review_reports/review_iter{index}.md"
+        verdict: dict = {
+            "iteration": index,
+            "report": report_rel,
+            "passed": False,
+            "grade": None,
+            "total": None,
+            "hard_faults": [],
+            "verdict_source": "none",
+        }
+        report_path = self.run_dir / report_rel
+        if not report_path.is_file():
+            verdict["parse_error"] = f"审查报告不存在: {report_rel}"
+            return verdict
+        text = report_path.read_text(encoding="utf-8")
+
+        blocks = re.findall(r"```json\s*(.*?)```", text, flags=re.DOTALL)
+        if blocks:
+            try:
+                data = json.loads(blocks[-1])
+                grade = str(data.get("grade", "")).strip()
+                total = data.get("total")
+                hard_faults = list(data.get("hard_faults") or [])
+                verdict.update(
+                    {
+                        "grade": grade or None,
+                        "total": total,
+                        "hard_faults": hard_faults,
+                        "verdict_source": "rubric_json",
+                        "passed": grade == "1"
+                        or (
+                            isinstance(total, (int, float))
+                            and total >= 85
+                            and not hard_faults
+                        ),
+                    }
+                )
+                return verdict
+            except (json.JSONDecodeError, TypeError, ValueError) as exc:
+                verdict["parse_error"] = f"评分 JSON 解析失败: {exc}"
+
+        # 回退：老报告只有「总体结论」行（instruction_template 契约），无 JSON 也不崩。
+        for line in text.splitlines():
+            if "总体结论" not in line:
+                continue
+            verdict["verdict_source"] = "conclusion_line"
+            verdict["passed"] = (
+                "基本达到" not in line and "未达到" not in line and "达到" in line
+            )
+            return verdict
+        verdict.setdefault("parse_error", "报告中既无评分 JSON 块也无「总体结论」行")
+        return verdict
 
     def _do_review(self, index: int) -> None:
         """inline=调 LLM 自审；handoff=确保有外部报告，否则写交接并暂停。"""
@@ -199,6 +289,8 @@ class StrategicResponsePipeline:
     _SCOPE_SOURCES = {
         "style_and_expression": ("policy_style_dna/review_scope.md", "policy_style_dna_snapshot"),
         "precedent_check": ("reviewers/precedent_check_scope.md", None),
+        "jiaokeyuan_final_review": ("reviewers/jiaokeyuan_review_scope.md", "policy_style_dna_snapshot"),
+        "reasoning_compliance": ("reasoning_dna/review_scope.md", "reasoning_dna_snapshot"),
     }
 
     def _existing_relpaths(self, subdir: str) -> list[str]:
@@ -614,6 +706,8 @@ class StrategicResponsePipeline:
                 self._policy_style_dna_text("review"),
                 "【文风与表达审查标准（A/B 两模式同源 · policy_style_dna/review_scope.md）】",
                 self._style_review_scope_text(),
+                "【报告质量评分标尺（quality_rubric.md · 唯一评分真源，评分 JSON 契约见其第五节）】",
+                self._quality_rubric_text(),
                 "【示例文章原文】",
                 self._read_module("source/sample.md"),
                 "【示例文章抽象模板】",
@@ -760,11 +854,16 @@ class StrategicResponsePipeline:
         content = self.llm.ask(prompt)
         self._write(output, content)
 
-    # _review_reaches_standard 已移除：改为“审一遍、按报告改一遍即定稿”，不再设达标正则门。
+    # 达标门为 _parse_review_verdict（rubric JSON 评分门）；旧正则门 _review_reaches_standard 已废。
 
     def _style_review_scope_text(self) -> str:
         """文风与表达审查标准（A/B 两模式同源）：policy_style_dna/review_scope.md。"""
         path = REPO_ROOT / "policy_style_dna" / "review_scope.md"
+        return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+    def _quality_rubric_text(self) -> str:
+        """报告质量评分标尺（唯一评分真源）：quality_rubric.md；缺文件返回空串（gated）。"""
+        path = WORKFLOW_ROOT / "quality_rubric.md"
         return path.read_text(encoding="utf-8") if path.is_file() else ""
 
     def _all_retrieval_text(self) -> str:
@@ -793,6 +892,12 @@ class StrategicResponsePipeline:
             source = source_dir / name
             if source.is_file():
                 shutil.copyfile(source, self.run_dir / "policy_style_dna_snapshot" / name)
+        # 评分标尺一并入快照：终审 handoff 的 {{STANDARD_FILES}} 自动含 quality_rubric（存在才拷）。
+        rubric = WORKFLOW_ROOT / "quality_rubric.md"
+        if rubric.is_file():
+            shutil.copyfile(
+                rubric, self.run_dir / "policy_style_dna_snapshot" / "quality_rubric.md"
+            )
 
     def _resolve_style_subtype(self) -> str:
         """决定本次注入哪一支 policy_style_dna 子型。
@@ -1054,8 +1159,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--review-scope",
         default="style_and_expression",
-        choices=["style_and_expression", "precedent_check"],
-        help="handoff 审稿范围；默认只审文风与表述",
+        choices=[
+            "style_and_expression",
+            "precedent_check",
+            "jiaokeyuan_final_review",
+            "reasoning_compliance",
+        ],
+        help=(
+            "handoff 审稿范围；默认只审文风与表述；"
+            "jiaokeyuan_final_review=教科院终审判分（quality_rubric 六维），"
+            "reasoning_compliance=推理对账（对照 judgment_outputs 降级记录）"
+        ),
     )
     modules_root = WORKFLOW_ROOT / "report_modules"
     available_modules = sorted(

@@ -87,7 +87,7 @@ python workflow/runner.py \
 - `--llm-provider`（可选，默认 `deepseek`，可选 `anthropic_compat`）：文本生成后端。
 - `--max-iterations`（可选，默认 `2`，运行时按 `max(1, N)` 取值）：审改上限。
 - `--reviewer`（可选，默认 `inline`，可选 `handoff`）：`inline`=同后端 LLM 自审；`handoff`=在审稿步暂停交外部 agent。
-- `--review-scope`（可选，默认 `style_and_expression`，可选 `precedent_check`）：handoff 审稿范围。
+- `--review-scope`（可选，默认 `style_and_expression`，可选 `precedent_check` / `jiaokeyuan_final_review` / `reasoning_compliance`）：handoff 审稿范围；`jiaokeyuan_final_review`=教科院终审判分（按 quality_rubric 六维出评分 JSON），`reasoning_compliance`=推理对账（对照 judgment_outputs 降级记录）。
 - `--style-subtype`（可选，默认 `auto`，可选 `a`/`b`）：policy_style_dna 子型路由，`auto` 按体例自动。
 - `--dry-run`（可选）：不调 NotebookLM/LLM，写占位。
 - `--reuse-materials-run <run-id>`（可选）：复用材料，跳过检索。
