@@ -21,6 +21,9 @@ import yaml
 
 
 WORKFLOW_ROOT = Path(__file__).resolve().parents[1]
+# 仓根：跨引擎共享的 SSOT 资产（policy_style_dna/、institution_profile.md）
+# 自 2026-07-05 起收敛于仓根（example1/），两引擎共读一份，禁止再复制副本。
+REPO_ROOT = WORKFLOW_ROOT.parent
 from llm_client import create_llm_client
 from notebooklm_client import NotebookLMClient
 
@@ -216,6 +219,8 @@ class StrategicResponsePipeline:
             scope, ("policy_style_dna/review_scope.md", "policy_style_dna_snapshot")
         )
         scope_src = WORKFLOW_ROOT / scope_rel
+        if not scope_src.is_file():
+            scope_src = REPO_ROOT / scope_rel  # SSOT 资产（如 policy_style_dna/）在仓根
         scope_desc = (
             scope_src.read_text(encoding="utf-8").strip()
             if scope_src.is_file()
@@ -759,7 +764,7 @@ class StrategicResponsePipeline:
 
     def _style_review_scope_text(self) -> str:
         """文风与表达审查标准（A/B 两模式同源）：policy_style_dna/review_scope.md。"""
-        path = WORKFLOW_ROOT / "policy_style_dna" / "review_scope.md"
+        path = REPO_ROOT / "policy_style_dna" / "review_scope.md"
         return path.read_text(encoding="utf-8") if path.is_file() else ""
 
     def _all_retrieval_text(self) -> str:
@@ -773,7 +778,7 @@ class StrategicResponsePipeline:
 
     def _copy_policy_style_dna_snapshot(self) -> None:
         """把本次使用的文风规则复制到运行目录，便于复查。"""
-        source_dir = WORKFLOW_ROOT / "policy_style_dna" / "wiki"
+        source_dir = REPO_ROOT / "policy_style_dna" / "wiki"
         if not source_dir.is_dir():
             return
         for name in [
@@ -834,7 +839,7 @@ class StrategicResponsePipeline:
         files.append(f"subtype_{self._resolve_style_subtype()}.md")
         blocks = []
         for name in files:
-            path = WORKFLOW_ROOT / "policy_style_dna" / "wiki" / name
+            path = REPO_ROOT / "policy_style_dna" / "wiki" / name
             if path.is_file():
                 blocks.append(f"## {name}\n\n{path.read_text(encoding='utf-8')}")
         if not blocks:
@@ -871,7 +876,7 @@ class StrategicResponsePipeline:
 
     def _institution_profile_text(self) -> str:
         """读取机构定位与建议落点 profile（跨体例共享，always-on）；无文件则空串（gated）。"""
-        path = WORKFLOW_ROOT / "institution_profile.md"
+        path = REPO_ROOT / "institution_profile.md"
         return path.read_text(encoding="utf-8") if path.is_file() else ""
 
     def _with_institution_profile(self, prompt: str) -> str:
@@ -882,7 +887,7 @@ class StrategicResponsePipeline:
         return prompt + "\n\n## 机构定位与建议落点（必须遵守）\n\n" + block
 
     def _copy_institution_profile_snapshot(self) -> None:
-        path = WORKFLOW_ROOT / "institution_profile.md"
+        path = REPO_ROOT / "institution_profile.md"
         if path.is_file():
             shutil.copyfile(path, self.run_dir / "institution_profile_snapshot.md")
 

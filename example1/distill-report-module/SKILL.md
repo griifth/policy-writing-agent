@@ -7,14 +7,15 @@ description: 体例合成器——喂入一篇或几篇同类范文，蒸馏出�
 
 把一篇/几篇同类范文，变成 strategic_response_workflow 可直接运行的一个新"体例"（report module）。
 
-**核心认知**：引擎（`workflow/runner.py`）本身不死板——它是通用解释器，运行时按 `--report-type` 加载一个 `report_modules/<x>/` 目录就跑。死板的只是"体例靠手写"。本 skill 自动化"从范文造体例"这一步；**风格 DNA（`style_dna/`）本来就是全局的，任何新体例自动套用**；推理 DNA（判断刀）默认先 gated 零注入，以后可用 `distill-reasoning-dna` skill 补。
+**核心认知**：引擎（`workflow/runner.py`）本身不死板——它是通用解释器，运行时按 `--report-type` 加载一个 `report_modules/<x>/` 目录就跑。死板的只是"体例靠手写"。本 skill 自动化"从范文造体例"这一步；**风格 DNA（`policy_style_dna/`，位于仓根）本来就是全局的，任何新体例自动套用**；推理 DNA（判断刀）默认先 gated 零注入，以后可用 `distill-reasoning-dna` skill 补。
+> ⚠️ 自测规则：本说明书引用的 DNA 目录名必须与 runner 实际加载一致（现行为 `policy_style_dna/`；旧 `style_dna/` 已于 2026-07-05 归档至 `archive/style_dna_v1/`，勿再引用）。
 
 ## 三块拼图
 
 | 拼图 | 谁负责 |
 |---|---|
 | 体例结构（推理链/分段/检索角度/归类与建议写法） | **本 skill 从范文蒸馏** |
-| 文风（声音/句式/禁用/自检） | `style_dna/`，全局，新体例零配置自动套用 |
+| 文风（声音/句式/禁用/自检） | `policy_style_dna/`（仓根），全局，新体例零配置自动套用 |
 | 判断刀（reasoning_dna） | 默认 gated 零注入；要强化时用 `distill-reasoning-dna` skill |
 
 ## 输入

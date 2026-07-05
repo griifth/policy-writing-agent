@@ -12,11 +12,11 @@
 | **引擎** runner | 顺序、IO、循环、暂停/续跑、审稿者选择、导出、归档 | `workflow/runner.py` |
 | **体例模块** | 分析路径：检索口径、各步提示词、文章模板、示例稿、检索类型 | `report_modules/<体例>/` |
 | **reasoning_dna** | 想到哪几层（判断纪律，"刀"） | 共享元格式 `reasoning_dna/conventions.md` + 各体例自带 `report_modules/<体例>/reasoning_dna/*.md`（gated 注入判断步） |
-| **style_dna** | 怎么写（文字） | `style_dna/wiki/*` |
-| **institution_profile** | 机构站位 + 对策落在什么域 + 怎么从国情+前文推对策 | `institution_profile.md`（跨体例共享、always-on，注入框问题/构思/建议/写作步） |
+| **policy_style_dna** | 怎么写（文字） | 仓根 `../policy_style_dna/wiki/*`（SSOT，两引擎共读，2026-07-05 收敛） |
+| **institution_profile** | 机构站位 + 对策落在什么域 + 怎么从国情+前文推对策 | 仓根 `../institution_profile.md`（跨体例共享、always-on，注入框问题/构思/建议/写作步） |
 
 **横向**是数据流（事实→判断→构思→文字→审核），**纵向**是五层各管一段、各自可演化、互不绑死。
-其中 reasoning_dna / style_dna / institution_profile 三层都是**运行时加载、gated（无文件则零注入）、每次运行快照留痕**。
+其中 reasoning_dna / policy_style_dna / institution_profile 三层都是**运行时加载、gated（无文件则零注入）、每次运行快照留痕**。
 
 ---
 
@@ -33,7 +33,7 @@
       │  [构思]
       ▼
  planning_outputs/ + suggestion_outputs/
-      │  [写作 + style_dna]
+      │  [写作 + policy_style_dna]
       ▼
  drafts/current_article    ──[审查×N]──► review_reports/   ◄─┐
       │                         │ 未达标                     │
@@ -49,7 +49,7 @@
 ## 三、阶段详解（按执行顺序）
 
 ### 阶段 0 · 路由与初始化　〔引擎〕
-- **init**：按 `--report-type` 载入体例模块（`report_modules/<type>/module.yaml`），建运行目录，**快照** style_dna / reasoning_dna / institution_profile 到 `runs/<id>/`（`style_dna_snapshot/`、`reasoning_dna_snapshot/`、`institution_profile_snapshot.md`），写 `input.yaml`。
+- **init**：按 `--report-type` 载入体例模块（`report_modules/<type>/module.yaml`），建运行目录，**快照** policy_style_dna / reasoning_dna / institution_profile 到 `runs/<id>/`（`policy_style_dna_snapshot/`、`reasoning_dna_snapshot/`、`institution_profile_snapshot.md`），写 `input.yaml`。
 - **为什么**：体例即可插拔模块，引擎不含任何体例知识；快照保证“这次用的哪版 DNA”可追溯。
 
 ### 阶段 1 · 检索（从知识库取事实）　〔引擎 + 体例模块〕
@@ -71,18 +71,18 @@
 - **prioritize_policy_options** → `suggestion_outputs/policy_priority.md`：排近/中/长期、定入稿序。
 - **为什么**：把“怎么组织”显性化，防止滑成逐国/逐点平铺的综述；建议在成文前过对象/工具匹配审查，防悬空。
 
-### 阶段 4 · 写作　〔体例模块 + style_dna + institution_profile〕
-- **write_draft** → `drafts/current_article.md`：模块 `prompts/writing.md` + `templates/article_template.md` + **注入 style_dna(writing)** + **institution_profile（对策锁定落点域）** + 全部判断/构思产物 + 检索材料。
-- **为什么**：文字层独立。同样的判断换 style_dna 就换文风；此时是“把已想清的写出来”，不是边想边写。
+### 阶段 4 · 写作　〔体例模块 + policy_style_dna + institution_profile〕
+- **write_draft** → `drafts/current_article.md`：模块 `prompts/writing.md` + `templates/article_template.md` + **注入 policy_style_dna(writing)** + **institution_profile（对策锁定落点域）** + 全部判断/构思产物 + 检索材料。
+- **为什么**：文字层独立。同样的判断换 policy_style_dna 就换文风；此时是“把已想清的写出来”，不是边想边写。
 
 ### 阶段 5 · 审查—修改循环（可迭代，带门槛）　〔引擎 + 模块 + style/reasoning〕
 两种审稿者，**契约相同、可换件**：
-- **inline**（默认/原行为）：同后端 LLM 自审，模块 `prompts/review.md` + style_dna(review)。
+- **inline**（默认/原行为）：同后端 LLM 自审，模块 `prompts/review.md` + policy_style_dna(review)。
 - **handoff**（`--reviewer handoff`）：跑到这**暂停**，写交接指令（`reviewers/instruction_template.md` 骨架 + **触发范围对应 DNA 的 `review_scope.md`** 决定“审什么”）+ `run_state.json`，退出；在场 agent 派**异源子 agent** 按该 DNA 审、写报告，再 `--resume` 续跑。
-- **门槛 `_review_reaches_standard`**：正则扫报告——出现“未达到/硬伤/对象错配/必须重写”等判不达标 → **revise_article**（模块 `prompts/revision.md` + style_dna(revision)）改稿，回到审查；达标则定稿。
-- **为什么**：① 异源审稿破“同模型把自己缺点当优点”的共享盲区；② 审稿“审什么”随 DNA 走——文风范围读 style_dna、推理对账范围读 reasoning_dna；③ 迭代门槛防“审查变形式确认”。
+- **门槛 `_review_reaches_standard`**：正则扫报告——出现“未达到/硬伤/对象错配/必须重写”等判不达标 → **revise_article**（模块 `prompts/revision.md` + policy_style_dna(revision)）改稿，回到审查；达标则定稿。
+- **为什么**：① 异源审稿破“同模型把自己缺点当优点”的共享盲区；② 审稿“审什么”随 DNA 走——文风范围读 policy_style_dna、推理对账范围读 reasoning_dna；③ 迭代门槛防“审查变形式确认”。
 
-### 阶段 6 · 收尾　〔引擎 + style_dna〕
+### 阶段 6 · 收尾　〔引擎 + policy_style_dna〕
 - **compare_with_sample** → `review_reports/template_match_review.md`：生成稿 vs 模块示例稿质量自评。
 - **export_docx**：pandoc → `.docx`。
 - **archive_log** → `run_log.md`：汇总产物，记体例与所用 DNA 快照。
@@ -107,7 +107,7 @@
 | 加一个新体例 | 在 `report_modules/` 加文件夹（module.yaml + retrieval/prompts/templates/source），`--report-type` 指定；institution_profile 自动带上 |
 | 改某体例的推理刀 | 改 `report_modules/<体例>/reasoning_dna/*.md` + module.yaml 的 `reasoning_dna_injection` 映射 |
 | 改对策落点域 / 机构站位 | 改 `institution_profile.md`（三体例全生效；换机构只改这一处） |
-| 改文风标准 | 改 `style_dna/wiki/*`、`style_dna/review_scope.md` |
+| 改文风标准 | 改 `policy_style_dna/wiki/*`、`policy_style_dna/review_scope.md` |
 | 改推理审查标准 | 改 `reasoning_dna/review_scope.md`、`reasoning_dna/conventions.md` |
 | 换审稿者 | 满足同一份审稿契约：handoff（在场 agent）/ 未来 cmd（`claude -p`、远程 agent）/ inline（同后端） |
 | 改交接话术 | 改 `reviewers/instruction_template.md` |
@@ -119,7 +119,7 @@
 - 引擎：`workflow/runner.py`
 - 体例模块：`report_modules/{strategic_response,experience_response,trend_review}/`（各含 `reasoning_dna/` 刀）
 - 推理层共享：`reasoning_dna/conventions.md`、`reasoning_dna/review_scope.md`、`reasoning_dna/DESIGN.md`
-- 文风层：`style_dna/wiki/`、`style_dna/review_scope.md`
+- 文风层：`policy_style_dna/wiki/`、`policy_style_dna/review_scope.md`
 - 机构层：`institution_profile.md`、`institution_profile/CORPUS_RECOMMENDATION_LOGIC.md`（对策生成思路，从38篇蒸馏）
 - 审稿：`reviewers/instruction_template.md`；三维 scope = style_and_expression / reasoning_compliance / precedent_check（`reviewers/precedent_check_scope.md`）
 - 配套 skill：`.claude/skills/{distill-reasoning-dna, audit-extend-suggestions}/`

@@ -13,7 +13,7 @@
 | **根引擎**（章节流水线，23 步） | `workflow/` | 国际比较类报告（逐章检索→写作→审查→改写） |
 | **战略引擎**（判断流水线，16 步） | `strategic_response_workflow/` | 判断类三体例：`strategic_response` / `experience_response` / `trend_review` |
 | **skill（迷你工作流）** | `topic-material-search/`、`distill-report-module/`、`policy-book-distillation/`… | 取料、造体例、蒸馏方法等，模型驱动 |
-| **注入资产** | 各引擎内的 `policy_style_dna/`、`institution_profile.md`、`report_modules/` | 只控文风/判断/落点，不控事实 |
+| **注入资产** | 仓根共享的 `policy_style_dna/`、`institution_profile.md`（两引擎共读一份，2026-07-05 SSOT 收敛）；各体例的 `report_modules/` 在战略引擎内 | 只控文风/判断/落点，不控事实 |
 
 两引擎都靠 **DeepSeek**（文本生成）+ **NotebookLM**（材料检索）跑；成稿用 **pandoc** 导出 docx。
 

@@ -10,7 +10,7 @@
 - NotebookLM 只用于检索指定知识库材料，不修改 NotebookLM skill 或知识库。
 - `.env` 只放在本目录，且不提交到 Git。
 - `runs/` 为本地运行记录目录，不进入 Git。
-- `style_dna/raw/` 和 `style_dna/processed/` 为本地风格素材与中间处理结果，不进入 Git；仓库只保留可复用的 `style_dna/wiki/` 文风规则。
+- 文风 DNA 已收敛为**仓根** `example1/policy_style_dna/`（SSOT，两引擎共读，2026-07-05 起）；原始人类语料不进 Git（目录内只留 `raw/source_manifest.csv` 清单）。旧 `style_dna/` 已归档至 `example1/archive/style_dna_v1/`。
 
 ## 目录
 
@@ -22,7 +22,7 @@
 - `prompts/`：检索、判断、构思、写作、审查、修改提示词。
 - `templates/`：从示例文章抽象出的文章结构模板。
 - `source/`：示例文章及模板抽取材料。
-- `style_dna/wiki/`：政策研究文风控制规则。
+- `../policy_style_dna/wiki/`（仓根）：政策研究文风控制规则（本引擎经 `REPO_ROOT` 读取）。
 - `imported_prompts/`：用户提供的对照提示词组。
 
 ## 配置

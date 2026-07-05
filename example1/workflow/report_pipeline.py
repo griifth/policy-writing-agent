@@ -20,6 +20,9 @@ from deepseek_client import DeepSeekClient
 from notebooklm_client import NotebookLMClient
 
 WORKFLOW_DIR = Path(__file__).resolve().parent
+# 仓根：跨引擎共享的 SSOT 资产（policy_style_dna/、institution_profile.md）
+# 自 2026-07-05 起收敛于仓根（example1/），两引擎共读一份，禁止再复制副本。
+REPO_ROOT = WORKFLOW_DIR.parent
 
 
 @dataclass(frozen=True)
@@ -570,7 +573,7 @@ class ReportPipeline:
         )
 
     def _institution_profile_text(self) -> str:
-        path = WORKFLOW_DIR / "institution_profile.md"
+        path = REPO_ROOT / "institution_profile.md"
         return path.read_text(encoding="utf-8") if path.is_file() else ""
 
     def _with_institution_profile(self, prompt: str) -> str:
@@ -589,7 +592,7 @@ class ReportPipeline:
         files.append("subtype_a.md")
         blocks = []
         for name in files:
-            path = WORKFLOW_DIR / "policy_style_dna" / "wiki" / name
+            path = REPO_ROOT / "policy_style_dna" / "wiki" / name
             if path.is_file():
                 blocks.append(f"## {name}\n\n{path.read_text(encoding='utf-8')}")
         return "\n\n".join(blocks)

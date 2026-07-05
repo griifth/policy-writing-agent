@@ -5,3 +5,8 @@ __pycache__/
 *.pyc
 work/
 workflow/tmp_*.py
+
+# 敏感原始语料不进 Git（2026-07-05：归档目录同样适用）
+archive/style_dna_v1/raw/samples_txt/
+archive/style_dna_v1/processed/
+archive/style_dna_v1/raw/samples_txt_raw/

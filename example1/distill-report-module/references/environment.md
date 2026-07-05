@@ -7,7 +7,7 @@
 - 工作流项目根：`/Users/hujingkai/Documents/New project/example1/strategic_response_workflow`
 - 引擎入口：`workflow/runner.py`（运行前 cd 进 `workflow/`，否则 import 失败）
 - 体例目录：`report_modules/<slug>/`；runs 落在 `strategic_response_workflow/runs/`
-- 风格 DNA：`style_dna/`（全局，新体例零配置自动套用）
+- 风格 DNA：`policy_style_dna/`（位于仓根 `example1/`，全局，新体例零配置自动套用）
 - DeepSeek 已配置：`.env` 内有 key，`--llm-provider deepseek`
 
 ## 解析/确认范文文本（第 1 步）
