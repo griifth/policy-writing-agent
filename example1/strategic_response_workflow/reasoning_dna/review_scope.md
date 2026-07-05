@@ -10,4 +10,4 @@
 
 判据：拿 `judgment_outputs/` 的降级记录逐条对照正文，指出违反处并**引原文**。最后给一行 `总体结论：达到 | 基本达到 | 未达到`。
 
-> 说明：`reasoning_dna/wiki/` 的各把“刀”（成因/有效性/共性个性/归类/张力/迁移前提）建成后，本清单应改为引用各刀的审查项；届时本范围的“尺子”会从 `reasoning_dna_snapshot/` 读取，自动随刀的演化而变。
+> 说明：各把“刀”现建于 `report_modules/<体例>/reasoning_dna/`（strategic_response：intent/threat/hedge；trend_review：signal/driver/stage/uncertainty；experience_response：cause/efficacy），共享证据分级与词表在 `shared_schema/`（evidence_maturity / register_blacklist / strength_gate）；本次运行实际使用的刀已快照于 `runs/<id>/reasoning_dna_snapshot/`，对账以快照为准。（2026-07-05 修复悬空引用：原承诺的 `reasoning_dna/wiki/` 未实现、已作废。）

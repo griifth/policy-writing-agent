@@ -1,5 +1,6 @@
 # reasoning_dna + 体例模块化 设计方案（v0.2，待审核）
 
+> ⚠️ 状态（2026-07-05）：v0.2 为历史设计稿，与磁盘不符处**以磁盘为准**。其中 benchmark_response 体例、共享刀 no_overreach.md、reasoning_dna/wiki/ 目录均未实现、已作废；现行刀在 `report_modules/<体例>/reasoning_dna/`（strategic_response / trend_review / experience_response），共享词汇在 `shared_schema/`（evidence_maturity / register_blacklist / strength_gate / layer_ownership）；文中 style_dna/ 已于 2026-07-05 合并提升为仓根 `policy_style_dna/`。
 > 状态：草案，等待审核后再动任何源码。
 > 适用工作流：`strategic_response_workflow/`
 > 起草：2026-06-22（v0.1）｜修订：2026-06-23（v0.2，纳入 GPT + 用户审核意见）

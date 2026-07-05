@@ -847,7 +847,7 @@ class StrategicResponsePipeline:
         return "\n\n".join(blocks)
 
     def _reasoning_dna_text(self, step_id: str) -> str:
-        """按 module.yaml 的 reasoning_dna_injection 映射，取该步对应的刀 + 共享 conventions。
+        """按 module.yaml 的 reasoning_dna_injection 映射，取该步对应的刀 + 共享 shared_schema + 共享 conventions。
 
         映射缺、或所列刀文件全缺 → 返回空串（gated：现有模块尚无刀时行为零变化）。
         """
@@ -859,6 +859,11 @@ class StrategicResponsePipeline:
         if not present:
             return ""
         blocks = []
+        # 共享词汇真源（各刀只引用不重定义）；layer_ownership.md 是治理文档，不注入。
+        for name in ["evidence_maturity", "register_blacklist", "strength_gate"]:
+            shared = WORKFLOW_ROOT / "shared_schema" / f"{name}.md"
+            if shared.is_file():
+                blocks.append(f"## {name}\n\n{shared.read_text(encoding='utf-8')}")
         conventions = WORKFLOW_ROOT / "reasoning_dna" / "conventions.md"
         if conventions.is_file():
             blocks.append(f"## conventions\n\n{conventions.read_text(encoding='utf-8')}")
@@ -892,12 +897,19 @@ class StrategicResponsePipeline:
             shutil.copyfile(path, self.run_dir / "institution_profile_snapshot.md")
 
     def _copy_reasoning_dna_snapshot(self) -> None:
-        """把本次模块的刀 + 共享 conventions 复制到 run 目录，便于复查。"""
+        """把本次模块的刀 + 共享 conventions + shared_schema 复制到 run 目录，便于复查。"""
         target = self.run_dir / "reasoning_dna_snapshot"
         conventions = WORKFLOW_ROOT / "reasoning_dna" / "conventions.md"
         if conventions.is_file():
             target.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(conventions, target / "conventions.md")
+        # 与 _reasoning_dna_text 的注入清单保持一致（layer_ownership 不注入故不快照）
+        schema_dir = WORKFLOW_ROOT / "shared_schema"
+        for name in ["evidence_maturity.md", "register_blacklist.md", "strength_gate.md"]:
+            path = schema_dir / name
+            if path.is_file():
+                target.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(path, target / name)
         cut_dir = self.module_root / "reasoning_dna"
         if cut_dir.is_dir():
             for path in sorted(cut_dir.glob("*.md")):
