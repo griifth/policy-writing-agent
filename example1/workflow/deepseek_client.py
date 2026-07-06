@@ -21,6 +21,10 @@ class DeepSeekConfigError(RuntimeError):
     """DeepSeek 配置缺失或格式错误。"""
 
 
+class DeepSeekEmptyResponseError(RuntimeError):
+    """DeepSeek 返回空 content（偶发；调用方应重试，而非把空结果当产物落盘）。"""
+
+
 def _ensure_project_path(path: str | Path) -> Path:
     """确保配置文件路径仍在当前项目内，避免越界读取。"""
     candidate = Path(path).expanduser()
@@ -153,8 +157,13 @@ class DeepSeekClient:
         self,
         messages: Sequence[Mapping[str, Any]],
         reasoning_effort: str | None = None,
+        thinking_enabled: bool | None = None,
     ) -> str:
-        """发送多轮消息，只返回最终 answer content，不返回 reasoning_content。"""
+        """发送多轮消息，只返回最终 answer content，不返回 reasoning_content。
+
+        thinking_enabled 为 None 时沿用全局配置；显式传 True/False 时按调用覆盖
+        （用于空响应降级重试：推理烧穿 max_tokens 时关闭思考保正文产出）。
+        """
         request_messages = [self._strip_reasoning_content(message) for message in messages]
         kwargs: dict[str, Any] = {
             "model": self.config.model,
@@ -165,33 +174,49 @@ class DeepSeekClient:
         effective_reasoning_effort = reasoning_effort or self.config.reasoning_effort
         if effective_reasoning_effort:
             kwargs["reasoning_effort"] = effective_reasoning_effort
-        if self.config.thinking_enabled is not None:
-            thinking_type = "enabled" if self.config.thinking_enabled else "disabled"
+        effective_thinking = (
+            thinking_enabled if thinking_enabled is not None else self.config.thinking_enabled
+        )
+        if effective_thinking is not None:
+            thinking_type = "enabled" if effective_thinking else "disabled"
             kwargs["extra_body"] = {"thinking": {"type": thinking_type}}
 
         response = self._client.chat.completions.create(**kwargs)
-        message = response.choices[0].message
+        choice = response.choices[0]
+        message = choice.message
 
         # DeepSeek 可能返回 reasoning_content；这里刻意不保存、不拼接、不向外暴露。
         content = message.content
         if content is None:
-            return ""
-        if isinstance(content, str):
-            return content
-        return "".join(part.get("text", "") for part in content if isinstance(part, dict))
+            text = ""
+        elif isinstance(content, str):
+            text = content
+        else:
+            text = "".join(part.get("text", "") for part in content if isinstance(part, dict))
+        if not text.strip():
+            raise DeepSeekEmptyResponseError(
+                f"DeepSeek 返回空 content（finish_reason={choice.finish_reason}，"
+                f"model={self.config.model}）"
+            )
+        return text
 
     def ask(
         self,
         prompt: str,
         system_prompt: str | None = None,
         reasoning_effort: str | None = None,
+        thinking_enabled: bool | None = None,
     ) -> str:
         """便捷单轮调用。"""
         messages: list[dict[str, str]] = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
-        return self.chat(messages, reasoning_effort=reasoning_effort)
+        return self.chat(
+            messages,
+            reasoning_effort=reasoning_effort,
+            thinking_enabled=thinking_enabled,
+        )
 
     @staticmethod
     def _strip_reasoning_content(message: Mapping[str, Any]) -> dict[str, Any]:

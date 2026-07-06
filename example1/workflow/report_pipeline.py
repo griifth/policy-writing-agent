@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 import shutil
+import time
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,7 +17,7 @@ from typing import Callable
 import file_store
 import prompt_builder
 import task_state
-from deepseek_client import DeepSeekClient
+from deepseek_client import DeepSeekClient, DeepSeekEmptyResponseError
 from notebooklm_client import NotebookLMClient
 
 WORKFLOW_DIR = Path(__file__).resolve().parent
@@ -358,7 +359,7 @@ class ReportPipeline:
         prompt = "\n\n".join(
             [
                 prompt,
-                "【战略仰角校准（硬约束）】自下而上凝出维度后再向上校准一次：维度须落在“国家战略布局/路线选择”的高度可比，而非停在技术做法层；若维度过于技术化，参照战略态势卡的“主要路线分野”向上抽一层重命名。仅可依据材料中已有的高位政策事实做此提升，不得自造战略叙事。",
+                "【战略仰角校准（硬约束）】自下而上凝出维度后再向上校准一次：维度须落在“国家战略布局/路线选择”的高度可比，而非停在技术做法层；若维度过于技术化，参照战略态势卡的“全局态势”与“政策层级演进”向上抽一层重命名。仅可依据材料中已有的高位政策事实做此提升，不得自造战略叙事。",
             ]
         )
         self._save_generated_prompt("ch2_dimensions_planning.md", prompt)
@@ -511,7 +512,23 @@ class ReportPipeline:
             self._write(output, f"DRY RUN：未调用 DeepSeek。\n\n提示词长度：{len(prompt)}\n")
             return
 
-        content = self.deepseek.ask(prompt, reasoning_effort=reasoning_effort)
+        # 空响应几乎总是推理（thinking）烧穿 max_tokens（finish_reason=length），
+        # 逐级降低推理强度重试：原参数 → effort=low → 关闭 thinking。
+        attempt_kwargs: list[dict[str, object]] = [
+            {"reasoning_effort": reasoning_effort},
+            {"reasoning_effort": "low"},
+            {"reasoning_effort": "low", "thinking_enabled": False},
+        ]
+        last_error: DeepSeekEmptyResponseError | None = None
+        for attempt, kwargs in enumerate(attempt_kwargs):
+            try:
+                content = self.deepseek.ask(prompt, **kwargs)  # type: ignore[arg-type]
+                break
+            except DeepSeekEmptyResponseError as exc:
+                last_error = exc
+                time.sleep(5 * (attempt + 1))
+        else:
+            raise RuntimeError(f"DeepSeek 降级重试 3 次仍返回空响应，任务中止：{last_error}")
         self._write(output, content)
 
     def _save_prompt(self, prompt_id: str, filename: str, **kwargs: str) -> Path:
@@ -567,7 +584,7 @@ class ReportPipeline:
         return "\n\n".join(
             [
                 prompt,
-                "【战略态势卡（贯穿全文的高位战略锚；只可引用其中已溯源的高位政策事实，不得据此自造态势）】",
+                "【战略态势卡（贯穿全文的高位战略锚；只可引用其中已溯源的高位政策事实，不得据此自造态势；本卡不预设类型划分，各小节分类由其写作模块按自身锁定的差异轴独立完成）】",
                 text,
             ]
         )
