@@ -841,6 +841,8 @@ class ReportPipeline:
         cleaned = "\n\n".join(paragraphs)
         cleaned = re.sub(r"\[\d+\]", "", cleaned)
         cleaned = re.sub(r"\[\^\d+\]", "", cleaned)
+        # 引用体例统一为课题组研究报告体：残留的"脚注[…]"式标注一律清除（兜底）。
+        cleaned = re.sub(r"脚注\[[^\]]*\]", "", cleaned)
         cleaned = re.sub(r"(?m)^\[\^\d+\]:.*(?:\n|$)", "", cleaned)
         cleaned = re.sub(r"[ \t]+([，。；：、！？])", r"\1", cleaned)
         cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
