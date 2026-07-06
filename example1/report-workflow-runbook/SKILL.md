@@ -4,9 +4,11 @@ description: >-
   驱动本仓两套政策报告写作流水线的 agent-facing 操作手册。覆盖「国际比较章节流水线」（根引擎 workflow/runner.py）
   与「判断类三体例流水线」（strategic 引擎 strategic_response_workflow/workflow/runner.py，体例
   experience_response / strategic_response / trend_review）。给出选引擎、拼启动命令、三种材料源、
-  中断续跑、产物定位、失败处置、dry-run 自检的可照抄步骤。
+  中断续跑、产物定位、失败处置、dry-run 自检、单篇终审打分的可照抄步骤。题目模糊时先走 report-clarify
+  写作前澄清；strategic 引擎自带评分门（quality_rubric 六维 JSON，不达标自动返修）与五个审稿 scope
+  （文风/先例/教科院终审/推理对账/站位互校验）。
   触发词：跑报告工作流、驱动写作流水线、启动政策报告、续跑、换体例、复用料包、审稿 handoff、
-  国际比较报告、战略应对报告、趋势研判、经验借鉴。
+  国际比较报告、战略应对报告、趋势研判、经验借鉴、评分门、终审打分、读者站位。
 ---
 
 # 政策报告工作流 · Agent 操作手册（Runbook）
@@ -30,6 +32,8 @@ description: >-
 ---
 
 ## 1. 题目 → 用哪个引擎 / 哪个 report-type
+
+> **题目模糊或用户要点选时，先走 `<ROOT>/report-clarify/`（写作前澄清 skill）**：预检索→候选研究问题→五问点选（读者层级/体例/观点/维度/风格）→自动拼好本手册 §2 的完整命令。题目与体例已明确时才按下表手选。
 
 | 题目形态 | 引擎 | `--report-type` |
 | --- | --- | --- |
@@ -145,7 +149,9 @@ python workflow/runner.py --topic "..." --notebook-name "占位" \
 - `generated_prompts/`、`retrieval_outputs/<type>.md`
 - `judgment_outputs/`：`task_redefinition.md`、`material_roles.md`、`pressure_judgment_mapping.md`
 - `planning_outputs/article_plan.md`、`suggestion_outputs/`（`suggestion_pool.md`、`policy_priority.md`）
-- `drafts/current_article.md`、`review_reports/`（`review_iterN.md`、`template_match_review.md`）
+- `drafts/current_article.md`、`review_reports/`（`review_iterN.md` 末尾含评分 JSON、`template_match_review.md`）
+- `review_gate_result.json`：评分门留痕（每轮 grade/total/硬伤、passed、停机原因）——判断"这篇过没过 85 分门"看这里
+- 规则快照：`policy_style_dna_snapshot/`（wiki + `quality_rubric.md`）、`reasoning_dna_snapshot/`（刀 + conventions + shared_schema）、`institution_profile_snapshot.md`、`audience_profile_snapshot.md`（选了 `--audience-level` 时）
 - 成稿：`final_article.md`、`final_article_reviewed.md`、`final_article_reviewed.docx`
 
 ---
@@ -170,9 +176,10 @@ python workflow/runner.py --topic "..." --notebook-name "占位" \
   （跳过已完成任务；resume 时会从 state 里载 notebook_id）。
 - strategic 一般中断：`python workflow/runner.py --continue <run-id>`
   （从第一个产物不全的步骤接着跑，复用已产检索/判断/构思，不重查 NotebookLM；判据见 runner.py 第 144–160 行 `_step_done`）。
-- strategic handoff 审稿续跑：首跑加 `--reviewer handoff`，会在 `review_draft` 步暂停并写出交接指令
-  （runner.py 第 178–183 行），外部 agent 把审稿报告写到 `<run-dir>/review_reports/review_iterN.md` 后，
+- strategic handoff 审稿续跑：首跑加 `--reviewer handoff`（scope 用 `--review-scope` 选，五把尺子见 §2B），会在 `review_draft` 步暂停并写出交接指令，外部 agent 把审稿报告写到 `<run-dir>/review_reports/review_iterN.md` 后，
   执行 `python workflow/runner.py --resume <run-id>` 续跑。
+  **报告契约**：推荐末尾附 `quality_rubric.md` 第五节格式的评分 JSON 块（评分门优先解析、`grade=1` 或 ≥85 零硬伤即过门）；
+  只写 `总体结论：达到/基本达到/未达到` 行也兼容（回退匹配：达到=过门）。不过门会触发返修并再次暂停（多轮）。
 
 ---
 
@@ -207,3 +214,18 @@ python workflow/runner.py --topic "美国AI人才战略布局及我国应对策�
 
 dry-run 通过标准：run 目录生成、`task_state.md` 全 `done`、`generated_prompts/` 与 `retrieval_outputs/`（占位二段式）齐全、
 无异常退出。通过后去掉 `--dry-run` 真跑。docx 可用 `unzip -t <run-dir>/final_article_reviewed.docx` 抽检。
+
+---
+
+## 8. 单篇终审打分（体外，任何稿件可用）
+
+对任意一篇成稿（含外来稿）按教科院终审人格 + `quality_rubric.md` 六维出评分报告与 JSON（需 DeepSeek key，单篇约 1–3 分钟）：
+
+```bash
+(cd "<ROOT>/strategic_response_workflow" && python3 tools/score_article.py \
+  --article "<稿件.md 路径>" [--label "展示用名"] [--out "<报告落点>"])
+```
+
+- stdout 一行摘要：`LABEL total=NN grade=X hard_faults=[...]`；完整报告缺省落在稿件同目录 `<stem>.score.md`。
+- 报告含：最像哪个盲测锚点（A–E）、离上一档还差的 2–3 件事、改文字还是须重构。
+- 用途：run 成稿的独立复核、外来稿评估、改 DNA/rubric 后对 `<ROOT>/method_audit/samples/txt/` 锚点复跑防回归。

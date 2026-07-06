@@ -12,8 +12,9 @@
 |---|---|---|
 | **根引擎**（章节流水线，23 步） | `workflow/` | 国际比较类报告（逐章检索→写作→审查→改写） |
 | **战略引擎**（判断流水线，16 步） | `strategic_response_workflow/` | 判断类三体例：`strategic_response` / `experience_response` / `trend_review` |
-| **skill（迷你工作流）** | `topic-material-search/`、`distill-report-module/`、`policy-book-distillation/`… | 取料、造体例、蒸馏方法等，模型驱动 |
-| **注入资产** | 仓根共享的 `policy_style_dna/`、`institution_profile.md`（两引擎共读一份，2026-07-05 SSOT 收敛）；各体例的 `report_modules/` 在战略引擎内 | 只控文风/判断/落点，不控事实 |
+| **skill（迷你工作流）** | `report-clarify/`（写作前澄清·新）、`topic-material-search/`、`distill-report-module/`、`policy-book-distillation/`… | 定题选体例、取料、造体例、蒸馏方法等，模型驱动 |
+| **注入资产** | 仓根共享的 `policy_style_dna/`、`institution_profile.md`（两引擎共读一份，2026-07-05 SSOT 收敛）；战略引擎内的 `report_modules/`（体例）、`shared_schema/`（证据分级/词表/强度门）、`audience_profiles/`（读者站位三档） | 只控文风/判断/落点/站位，不控事实 |
+| **质量门** | `strategic_response_workflow/quality_rubric.md`（六维评分唯一真源）+ runner 评分门（不达标自动返修）+ `reviewers/jiaokeyuan_review_scope.md`（教科院终审）+ `tools/score_article.py`（单篇打分） | 1 档 = 总分≥85 且零硬伤 |
 
 两引擎都靠 **DeepSeek**（文本生成）+ **NotebookLM**（材料检索）跑；成稿用 **pandoc** 导出 docx。
 
@@ -94,7 +95,9 @@ cd ..
 
 ## 四、跑第一篇报告
 
-去掉 `--dry-run` 即真跑。完整参数、体例选择、续跑、产物落点见 **[`report-workflow-runbook/SKILL.md`](report-workflow-runbook/SKILL.md)**；任务参数可照 **[`task_config.template.yaml`](task_config.template.yaml)** 填。
+**题目或体例拿不准时，先对 agent 说「帮我定题」**——触发 [`report-clarify`](report-clarify/SKILL.md) 写作前澄清：预检索→候选问题→五问点选（读者层级/体例/观点/维度/风格），点完自动拼好完整启动命令。
+
+去掉 `--dry-run` 即真跑。完整参数（含 `--audience-level` 读者站位、`--reviewer handoff --review-scope jiaokeyuan_final_review` 教科院终审）、体例选择、续跑、产物落点见 **[`report-workflow-runbook/SKILL.md`](report-workflow-runbook/SKILL.md)**；任务参数可照 **[`task_config.template.yaml`](task_config.template.yaml)** 填。
 
 - 中断续跑：战略引擎 `--continue` / `--resume <run-id>`；根引擎 `--resume-run <run-id>`。
 - 成稿落在 `runs/<run-id>/`（`final_report*.md` / `final_article*.md` + `.docx`）。
@@ -115,7 +118,7 @@ cd ..
 
 ## 六、更多文档
 
-- **[`USAGE.md`](USAGE.md)** — 全流程使用指南（搜资料→检索→识别体例写作→教科院审核优化）
+- **[`USAGE.md`](USAGE.md)** — 全流程使用指南（写作前澄清→搜资料→写作引擎+评分门→终审与外审）
 - **[`report-workflow-runbook/SKILL.md`](report-workflow-runbook/SKILL.md)** — 怎么驱动两台引擎（选引擎/命令/续跑/失败处置）
 - **[`WINDOWS_MIGRATION_CHECKLIST.md`](WINDOWS_MIGRATION_CHECKLIST.md)** — 移植到 Windows 的完整修复清单
 - **[`task_config.template.yaml`](task_config.template.yaml)** — 报告任务配置模板
