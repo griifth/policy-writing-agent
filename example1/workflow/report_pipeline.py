@@ -445,20 +445,54 @@ class ReportPipeline:
         self._save_generated_prompt("fulltext_content_structure_review.md", prompt)
         self._ask_deepseek(prompt, "review_reports/fulltext_content_structure_review.md")
 
+    @staticmethod
+    def _extract_typology_names(text: str) -> list[str]:
+        """从正文抽取"第X类是XX型"领起句确立的类型命名（运行时锁轴用）。"""
+        names = re.findall(r"第[一二三四五六七八九十]+类是([一-龥]{2,10}型)", text)
+        seen: list[str] = []
+        for name in names:
+            if name not in seen:
+                seen.append(name)
+        return seen
+
     def _rewrite_full_report(self) -> None:
         """根据全文审查意见生成修改后的完整报告。"""
 
+        full_report = self._read("final_report.md")
         prompt = prompt_builder.build_revision_prompt(
             "fulltext_content_structure",
             topic=self.config.topic,
             review_template=self._read_review_template(),
             review_report=self._read("review_reports/fulltext_content_structure_review.md"),
-            full_report=self._read("final_report.md"),
+            full_report=full_report,
         )
-        prompt = self._with_strategic_framing(prompt)
+        # 实验结论（method_audit/fulltext_rewrite_ab_20260706）：重写步不注入战略态势卡——
+        # 态势卡会诱导重写按其叙事重构分类骨架（现行产物轴保真 0/5，撤卡变体 5/5 且盲评第一）。
         prompt = self._with_institution_profile(prompt)
+        typology = self._extract_typology_names(full_report)
+        if typology:
+            prompt = "\n\n".join(
+                [prompt, "【类型命名清单（不可变更，逐字保留）】", "、".join(typology)]
+            )
         self._save_generated_prompt("fulltext_content_structure_rewrite.md", prompt)
         self._ask_deepseek(prompt, "final_report_reviewed.md")
+        if self.config.dry_run:
+            return
+        # 机械复核闸：类型命名保留 + 篇幅警戒，不靠模型自觉。
+        reviewed = self._read("final_report_reviewed.md")
+        lost = [name for name in typology if name not in reviewed]
+        if lost:
+            raise RuntimeError(
+                f"重写稿丢失类型命名：{'、'.join(lost)}——"
+                "分类轴不可变更硬约束被违反，任务中止（可 --resume-run 重试本步）"
+            )
+        src_len = len(re.sub(r"\s", "", full_report))
+        dst_len = len(re.sub(r"\s", "", reviewed))
+        if src_len and not 0.6 <= dst_len / src_len <= 1.4:
+            raise RuntimeError(
+                f"重写稿篇幅异常（原文 {src_len} 字 → 重写 {dst_len} 字，"
+                "超出 60%–140% 警戒区），疑似信息缩水或注水，任务中止（可 --resume-run 重试本步）"
+            )
 
     def _archive_log(self) -> None:
         """归档运行日志。"""
