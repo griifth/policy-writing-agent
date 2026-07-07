@@ -1,13 +1,19 @@
 ---
 name: topic-material-search
-description: For a specified topic, design a fine-grained search plan and collect authoritative, traceable source material from the web (no NotebookLM), then have DeepSeek review it until it passes, producing a reusable material pack (retrieval_outputs) that the strategic_response_workflow can consume directly. Use when the user asks 给某个主题搜资料/搜集权威资料/做检索材料/生成检索方案/自己检索代替 NotebookLM/为写作工作流准备六类检索材料, or wants topic-specific web research with strict sourcing and evidence-status tagging before running an experience_response or other report workflow. Claude collects/organizes; DeepSeek reviews.
+description: For a specified topic, design a fine-grained search plan and collect authoritative, traceable source material from the web (no NotebookLM), then have DeepSeek review it until it passes, producing a reusable material pack (retrieval_outputs) that the strategic_response_workflow can consume directly. Use when the user asks 给某个主题搜资料/搜集权威资料/做检索材料/生成检索方案/自己检索代替 NotebookLM/为写作工作流准备六类检索材料, or wants topic-specific web research with strict sourcing and evidence-status tagging before running an experience_response or other report workflow. The orchestrating agent fans out sub-agents for BOTH collection and consolidation; DeepSeek reviews.
 ---
 
 # Topic Material Search
 
 Turn a specified topic into a **search plan first, then a traceable material pack** — not a pile of unsourced facts. The plan is the point: a coarse plan produces shallow material. But granularity is **never hardcoded** — the skill co-designs the plan WITH the user, asking which entities, how deep, and which angles matter (including the easy-to-miss ones: curriculum/program structure, exemplar institutions, hiring/appointment mechanics), then searches to the agreed depth.
 
-Division of labor: **you (Claude) design the plan, collect, retrieve, organize, and write the material files; DeepSeek (DS) is a lightweight stateless reviewer.** Do not use NotebookLM.
+Division of labor — **every step names its executor, no double-assignment**:
+- **Orchestrating agent (you)** — design the plan, dispatch sub-agents (collectors + organizers), coordinate cross-category dedup, run the DS review loop, finalize & hand off. **You orchestrate; you do NOT do the bulk web collection or the per-category consolidation writing yourself — both are fanned out to sub-agents.**
+- **Collector sub-agents** (fan-out, one per plan partition) — run real WebSearch/WebFetch, return sourced fragments to you.
+- **Organizer sub-agents** (fan-out, one per `retrieval_type`/category) — consolidate the fragments for their own category, dedup within it, and write that category's 二段式 material file.
+- **DeepSeek (DS)** — lightweight stateless reviewer.
+
+Do not use NotebookLM.
 
 ## Operating Standard (non-negotiable)
 
@@ -37,13 +43,15 @@ Run in order. Read the referenced file only when that step is active.
 
 2. **Co-design the search plan with the user (core step).** Draft a candidate `category × entity` matrix, then ASK the user to set granularity and angles — which entities to cover, how deep per category, which micro-detail angles to include (curriculum / exemplar institution / appointment mechanics / effectiveness), and source/language preferences. Use AskUserQuestion for the choices that actually change the plan; propose a sensible default but let the user decide. Only after the user confirms, finalize `runs/<run-id>/search_plan.md`. Method + elicitation guide: [references/search-plan-method.md](references/search-plan-method.md).
 
-3. **Collect (fan-out).** Launch parallel research sub-agents — one per plan partition (e.g. per country, or per category) — each running real WebSearch/WebFetch (and ai4scholar scholar tools when useful). Each must return facts with provenance + evidence status + a T1/T2 source table, under the sourcing standard: [references/sourcing-standard.md](references/sourcing-standard.md).
+3. **Collect (fan-out by partition).** Launch parallel **collector** sub-agents — one per plan partition (e.g. per country) — each running real WebSearch/WebFetch (and ai4scholar scholar tools when useful). Each returns **sourced fragments** (facts with provenance + evidence status + a T1/T2 source table) back to you; collectors do NOT write the final pack files. Sourcing standard: [references/sourcing-standard.md](references/sourcing-standard.md).
 
-4. **Review micro-loop with DeepSeek.** Assemble collected material + the review standard into `/tmp/review_in.txt`, call DS, and act on its per-category verdict and gap list. Loop until DS says 通过 or 4 rounds. Standard + exact DS call: [references/review-standard.md](references/review-standard.md). Save each round's verdict as `ds_review_round<N>.md`.
+4. **Organize (fan-out by category).** Group the returned fragments by `retrieval_type`, then launch parallel **organizer** sub-agents — **one per `retrieval_type`/category**. Give each organizer (a) all fragments relevant to its category and (b) a shared **dedup key list** (已收录条目) so parallel organizers don't double-count. Each organizer dedups within its category, keeps only sourced facts, and writes its `runs/<run-id>/retrieval_outputs/<type>.md` in the 二段式 format (一、检索内容 / 二、相关文献) with provenance + evidence tags. **Cross-category dedup is YOUR job (barrier):** after all organizers return, run one final pass to remove any fact duplicated across category files — parallel organizers cannot see each other.
 
-5. **Land the material pack.** Write the category files into `runs/<run-id>/retrieval_outputs/` using the resolved filenames (one per retrieval type), in the standard 二段式 format (一、检索内容 / 二、相关文献). Keep `search_plan.md` and DS verdicts alongside.
+5. **Review micro-loop with DeepSeek.** Assemble the organized pack + the review standard into `/tmp/review_in.txt`, call DS, and act on its per-category verdict and gap list. On a gap, **re-dispatch the relevant collector or organizer sub-agent** — do not patch by hand. Loop until DS says 通过 or 4 rounds. Standard + exact DS call: [references/review-standard.md](references/review-standard.md). Save each round's verdict as `ds_review_round<N>.md`.
 
-6. **Hand off.** Report the pack location. If a `report-type` was given, the pack is directly reusable: `runner.py --report-type <type> ... --reuse-materials-run <run-id>` (see [references/environment.md](references/environment.md)). Offer to run it; do not run automatically unless asked.
+6. **Finalize the pack.** Verify every `retrieval_type` file exists, is non-shallow, and cross-category dedup is done. Keep `search_plan.md` and DS verdicts alongside `retrieval_outputs/`.
+
+7. **Hand off.** Report the pack location. If a `report-type` was given, the pack is directly reusable: `runner.py --report-type <type> ... --reuse-materials-run <run-id>` (see [references/environment.md](references/environment.md)). Offer to run it; do not run automatically unless asked.
 
 ## Quality bar (what "done" means)
 
@@ -52,6 +60,7 @@ Run in order. Read the referenced file only when that step is active.
 - `effectiveness_evidence`-type categories have ≥2 facts with real evaluation data, not only intent.
 - No precise-but-unsourced numbers remain; uncertain items are tagged `[未取全文]`/`[待核]`.
 - DS returns 通过 (or the loop hit 4 rounds and the residual gaps are stated explicitly).
+- Every `retrieval_type` has its own 二段式 file, and **no fact is duplicated across category files** (cross-category dedup pass done by the orchestrator).
 
 ## Pitfalls this skill exists to prevent
 
@@ -60,3 +69,4 @@ Run in order. Read the referenced file only when that step is active.
 - **Imposing depth the user didn't ask for.** Don't bloat the plan with angles the user declined; co-design means honoring "shallower is fine here" too.
 - **Treating intent as proven practice.** Tag evidence status honestly; do not let `[意图或建议]` masquerade as `[评估数据]`.
 - **Silent truncation.** If anti-scraping/paywall blocks a source, keep the URL + abstract and tag `[未取全文]`; log what was not fully retrieved.
+- **Parallel organizers double-count.** Because organizer sub-agents can't see each other, the same fact can land in two category files. Give every organizer a shared 已收录条目 key list up front, and run one orchestrator-side cross-category dedup pass after they return. Never skip that barrier just because the per-category files "look done".

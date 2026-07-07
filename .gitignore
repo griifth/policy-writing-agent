@@ -11,3 +11,12 @@ reports/
 
 # 系统垃圾
 .DS_Store
+
+# —— 构建产物与独立项目（2026-07 追加）——
+# PPT 生成中间件与渲染图（可重生成，不入库）
+example1/ppt_build/
+
+# 各自独立管理的项目/工作区，不并入本仓库
+policy-writing-agent/
+policy-writing-agent-ima-policywriter/
+材料获取工作流/
