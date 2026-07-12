@@ -1,0 +1,6 @@
+id,cn_chars,paragraphs,avg_para_cn,heading_markers,bold_spans,year_mentions,numeric_mentions,latin_source_mentions,policy_subject_terms,decision_action_terms,source_channel_terms,contrast_judgment_terms,ai_style_terms,advice_items_est
+S01,6747,25,269.9,5,18,24,43,81,164,105,134,134,8,0
+S02,2776,18,154.2,0,12,8,16,9,58,62,41,68,7,0
+S03,5765,40,144.1,7,23,23,51,84,134,101,124,100,4,0
+S04,4896,45,108.8,10,19,29,77,20,66,151,61,66,5,9
+S05,2739,25,109.6,3,20,6,19,10,54,48,53,15,0,6

@@ -1,0 +1,6 @@
+S01=文章A
+S02=文章B
+S03=文章C
+S04=文章D
+S05=文章E
+Known labels from meeting/user: S03 and S05 human; S01/S02/S04 AI.

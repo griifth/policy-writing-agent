@@ -1,0 +1,16 @@
+# 盲测集 v2 测试集映射（评委与调度者在盲测结束前不得读取）
+# 洗牌规则：md5(归一化标题 + 盐) 十六进制升序 → T01..T12；盐自 blind_v2_0 递增，取首个同组连排≤2 的盐（本次盐：blind_v2_0，两组交错模式：AHHAHAHHAAHA）
+# T编号	源文件路径	组别
+T01	/Users/hujingkai/Documents/New project/example1/strategic_response_workflow/runs/run-20260625-210305-06e3ea92/final_article_reviewed.md	AI
+T02	/Users/hujingkai/Downloads/Kimi_Agent_OCR转MD文本缺失/md/警惕美竞争法案对我教育战略带来的重大风险.md	人
+T03	/Users/hujingkai/Downloads/Kimi_Agent_OCR转MD文本缺失/md/美英德澳培养与聘任体育教师的做法和特点.md	人
+T04	/Users/hujingkai/Documents/New project/example1/strategic_response_workflow/runs/run-20260626-111233-dfa77f3b/final_article_reviewed.md	AI
+T05	/Users/hujingkai/Downloads/Kimi_Agent_OCR转MD文本缺失/md/国外生成式人工智能教育应用态度、策略和举措.md	人
+T06	/Users/hujingkai/Documents/New project/example1/strategic_response_workflow/runs/run-20260626-131122-452a7eaa/final_article_reviewed.md	AI
+T07	/Users/hujingkai/Downloads/Kimi_Agent_OCR转MD文本缺失/md/国外终身教育改革动向和趋势.md	人
+T08	/Users/hujingkai/Downloads/Kimi_Agent_OCR转MD文本缺失/md/世界教育数字化发展态势分析.md	人
+T09	/Users/hujingkai/Documents/New project/example1/strategic_response_workflow/runs/run-20260623-151123-50592bc4/final_article_reviewed.md	AI
+T10	/Users/hujingkai/Documents/New project/example1/runs/run-20260706-095808-7906d24e/final_report_reviewed_教科院修订版.md	AI
+T11	/Users/hujingkai/Downloads/Kimi_Agent_OCR转MD文本缺失/md/从国际经验中优化课后服务推动双减政策落地.md	人
+T12	/Users/hujingkai/Documents/New project/example1/strategic_response_workflow/runs/run-20260629-115549-ed10468f/final_article_reviewed.md	AI
+# 设计集：D01..D05 = ai_judge_human_study_2026-07-07/blind_sets/S01..S05（编号原样对应）
