@@ -122,6 +122,7 @@
 > 以下两条为**原样抄录的既知欠账**，不得遗漏：
 
 1. **docx 导出未接入**：交付撰写者的内参版式导出用仓内 `scripts/neican_docx.py`，留待真人单接入验证。
+   →【2026-07-13 已处置】docx 导出已入包（`tools/neican_docx.py` 快照＋`finishing/排版规程.md`），并新增清稿工序（`finishing/清稿规程.md`，内核＝用户实测原版提示词，执行引擎 agent 非 DeepSeek）；契约⑤⑥与宪法§三同步，经拔尖创新人才单实测走通。此欠账消。
 2. **写作实体执行引擎未决策**：本次试跑由 agent 直写；投产前须决定是否按"落笔全国产（DeepSeek）"的安全承诺回 DeepSeek 执行写作实体——届时移植 `workflow/llm_client` 与 `deepseek_client` 并在契约③标注执行引擎。
 
 ### 其他观察（来自问题反馈录，详见 `_问题反馈录.md`）
@@ -142,5 +143,7 @@ direction_workflow/
 ├─ skills/                report-clarify-v2、topic-material-search-v2（转正）＋ policy-report-assembler、yongjun-thinking、cao-thinking（随包副本）
 ├─ templates/             六模板（含结构单模板内置映射表）
 ├─ gates/                 precheck.py＋闸门规程.md＋register_blacklist.md（词表快照）
+├─ finishing/             交付工序规程：清稿规程.md（内核＝用户原版提示词，agent 执行非 DeepSeek）＋排版规程.md
+├─ tools/                 neican_docx.py（内参版式导出脚本快照，真源 scripts/neican_docx.py）
 └─ runs/                  2026-07-12-中小学科学教育（试跑）、2026-07-13-拔尖创新人才（首单）
 ```
