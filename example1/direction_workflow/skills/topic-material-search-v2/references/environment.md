@@ -1,10 +1,12 @@
 # Environment, Paths & Material Contract
 
-All paths are fixed; use them verbatim.
+> 路径约定：本文件内相对路径一律以 direction_workflow/ 为根。
+> 本文件描述的 `strategic_response_workflow/` 是**包外外部依赖**（旧引擎，位于仓库根，见 移植说明.md「外部依赖」节）：
+> `<REPO>` ＝ 本包 direction_workflow/ 的上一级目录（仓库根，路径可能含空格，命令加引号）。整包移植到无此引擎的机器时，全量模式的 DS 复审与 hand-off 不可用。
 
 ## Project layout
 
-- Workflow project root: `/Users/hujingkai/Documents/New project/example1/strategic_response_workflow`
+- Workflow project root: `<REPO>/strategic_response_workflow`
 - Workflow entry: `workflow/runner.py` — **cd into `workflow/` before running**, or internal imports fail.
 - DeepSeek is pre-configured: `strategic_response_workflow/.env` holds the key; callable in one line from `workflow/` via `llm_client` (see [review-standard.md](review-standard.md)).
 - Report modules: `report_modules/<report-type>/` — `module.yaml` lists the `retrieval_types`; the prompts live under `prompts/`. You do NOT modify modules.
@@ -21,14 +23,14 @@ All paths are fixed; use them verbatim.
 ## Resolve module retrieval types
 
 ```bash
-cd "/Users/hujingkai/Documents/New project/example1/strategic_response_workflow"
+cd "<REPO>/strategic_response_workflow"
 python3 -c "import yaml,sys; print('\n'.join(yaml.safe_load(open('report_modules/%s/module.yaml'%sys.argv[1]))['retrieval_types']))" experience_response
 ```
 
 ## Hand-off: feed the writing workflow (optional, only if asked)
 
 ```bash
-cd "/Users/hujingkai/Documents/New project/example1/strategic_response_workflow/workflow"
+cd "<REPO>/strategic_response_workflow/workflow"
 python3 runner.py \
   --report-type <report-type> \
   --topic "<topic>" \

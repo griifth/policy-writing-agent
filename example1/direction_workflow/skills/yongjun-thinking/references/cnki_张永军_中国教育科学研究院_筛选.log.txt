@@ -1,0 +1,13 @@
+query=作者:张永军(精确)
+institution_filter=中国教育科学研究院
+result_total=38
+pages_read=2
+records_selected=10
+unique_selected=10
+duplicates=0
+security_blocking=no
+verification_component_present=yes
+downloaded_pdfs=3
+downloaded_titles=澳大利亚STEM教育政策分析与启示|全球本土化视角下核心素养框架的构建机制——以澳大利亚“核心学习技能”框架为例|数字经济背景下澳大利亚教育信息化发展举措
+selection_rule=优先政策研究、国际比较、教育数字化；优先独著/第一作者；2篇预注册留出，不进入蒸馏
+note=detailUrl查询参数为会话性链接，CSV仅保留知网详情页入口形制；正式证据以本地PDF与蒸馏报告中的篇名、页码为准。

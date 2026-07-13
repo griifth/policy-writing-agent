@@ -14,8 +14,9 @@
   2 评估脚手架      评估器口吻：维度枚举（第X维/从X个维度）＋ 评述套话（优势在于/局限在于/启示在于…）。
   3 元话语宣告      文章自指的宣告腔（本文/综上/呈现X大/如下所示…）。
   4 模糊载体×精确数字  模糊主语/来源（据报道/不少/大量…）与精确数字或百分比同句 —— 伪精确。
-  5 军事化语域      词表复用仓库唯一真源，运行时按原路径读取，不在本目录复制：
-                    strategic_response_workflow/shared_schema/register_blacklist.md（甲乙丙三类并集）。
+  5 军事化语域      词表读取包内快照 gates/register_blacklist.md（甲乙丙三类并集）。
+                    真源：strategic_response_workflow/shared_schema/register_blacklist.md，
+                    真源改动后须重新快照进包（见 移植说明.md）。
   6 段末概括占比    以概括句收尾（总的来看/这表明/由此可见…）的正文段落数 ÷ 正文段落总数。
 
 千字基数 = 全文去空白字符数（供密度类指标换算，非阈值）。
@@ -27,32 +28,25 @@ import sys
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# 军事化词表：不复制进本目录，运行时按原路径读取唯一真源。
+# 军事化词表：读取与本脚本同目录的包内快照 gates/register_blacklist.md。
+# 真源在 strategic_response_workflow/shared_schema/register_blacklist.md，
+# 真源改动后须重新快照进包，勿只改快照副本。
 # ─────────────────────────────────────────────────────────────────────────
-BLACKLIST_RELPATH = os.path.join(
-    "strategic_response_workflow", "shared_schema", "register_blacklist.md"
-)
+BLACKLIST_FILENAME = "register_blacklist.md"
 
 
 def find_blacklist():
-    """从本脚本所在处逐级向上，找到含唯一真源词表的仓库根，返回词表绝对路径。
+    """返回与本脚本同目录的词表快照绝对路径。
 
     找不到即抛错——军事化一项无法机械计数时明确报错，不静默跳过。
     """
     here = os.path.dirname(os.path.abspath(__file__))
-    d = here
-    while True:
-        cand = os.path.join(d, BLACKLIST_RELPATH)
-        if os.path.isfile(cand):
-            return cand
-        parent = os.path.dirname(d)
-        if parent == d:
-            break
-        d = parent
+    cand = os.path.join(here, BLACKLIST_FILENAME)
+    if os.path.isfile(cand):
+        return cand
     raise FileNotFoundError(
-        "未能按原路径找到军事化词表唯一真源：{}（自 {} 起逐级向上未命中）".format(
-            BLACKLIST_RELPATH, here
-        )
+        "未找到军事化词表快照：{}（应与 precheck.py 同目录；"
+        "真源为 strategic_response_workflow/shared_schema/register_blacklist.md）".format(cand)
     )
 
 
@@ -220,7 +214,7 @@ def run(path):
     P("| 6 段末概括占比 | {}/{}（{:.1f}%） |".format(
         len(summ), n_body, 100.0 * len(summ) / n_body if n_body else 0))
     P("")
-    P("军事化词表来源（运行时按原路径读取，未复制进本目录）：")
+    P("军事化词表来源（包内快照 gates/register_blacklist.md，真源见 移植说明.md）：")
     P("  {}".format(bl_path))
     P("  载入词条 {} 个：{}".format(len(mil_terms), "、".join(mil_terms)))
     P("")

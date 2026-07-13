@@ -8,12 +8,12 @@
 ## 一、架构一图
 
 ```
-                        ┌─────────────────── 三张图纸（设计真源，在 records/，不搬家）───────────────────┐
+                        ┌────── 三张图纸（设计真源在 records/；包内运行引 blueprints/ 快照）──────┐
                         │  元框架.md（槽位族谱/变奏表） → 元模块契约.md（四模块边界） → 调度宪法.md（八条+形制） │
                         └───────────────────────────────────┬───────────────────────────────────────────┘
                                                              │ 每接一单先读
                                                              ▼
-   裸主题 ──► [装配工 skill] policy-report-assembler（~/.claude/skills/，调度本体）
+   裸主题 ──► [装配工 skill] policy-report-assembler（skills/policy-report-assembler/，调度本体；本机亦装于 ~/.claude/skills/）
                  │  按图纸现场制造各模块「实体提示词」（每个含四节，必引图纸原文＝宪法第4条）
                  │
                  ├─①侦察实体 ──真联网──► 态势速览一页（四栏＋逃生口）
@@ -45,14 +45,14 @@
 
 | 部件 | 位置 | 来源 / 转正说明 |
 |---|---|---|
-| 三张图纸 | `records/元框架提炼_2026-07-12/元框架.md`、`records/装配式图纸_2026-07-12/{元模块契约,调度宪法_SKILL草案}.md` | 设计真源，**不复制不搬家**，skill 与流程按绝对路径引用 |
-| 装配工 skill | `~/.claude/skills/policy-report-assembler/SKILL.md` | 由 `skills草案/policy-report-assembler_SKILL草案.md` 落成；宪法八条逐字照录；路径改指本仓真实位置 |
+| 三张图纸 | 真源：`records/元框架提炼_2026-07-12/元框架.md`、`records/装配式图纸_2026-07-12/{元模块契约,调度宪法_SKILL草案}.md`；包内快照：`direction_workflow/blueprints/` | 设计真源在 records/ 不搬家；skill 与流程运行时引 `blueprints/` 快照；真源改动后须重新快照（见 `移植说明.md`） |
+| 装配工 skill | `direction_workflow/skills/policy-report-assembler/SKILL.md`（包内；本机安装件在 `~/.claude/skills/`） | 由 `skills草案/policy-report-assembler_SKILL草案.md` 落成；宪法八条逐字照录；包内副本路径已改为以 direction_workflow/ 为根的相对路径 |
 | report-clarify-v2 | `direction_workflow/skills/report-clarify-v2/` | 从 `712测试/skills/` **完整复制转正**（原目录不动）；触点一用；未装为系统 skill，按路径读取执行 |
 | topic-material-search-v2 | `direction_workflow/skills/topic-material-search-v2/` | 同上；侦察/全量检索用 |
-| yongjun-thinking / cao-thinking | `~/.claude/skills/`（已安装） | 定题立论 / 结构预读；按名触发；**永不打分**（宪法第6条） |
+| yongjun-thinking / cao-thinking | `direction_workflow/skills/{yongjun-thinking,cao-thinking}/`（包内；本机亦装于 `~/.claude/skills/` 可按名触发） | 定题立论 / 结构预读；**永不打分**（宪法第6条） |
 | 六模板 | `direction_workflow/templates/` | 方向书、态势速览（复制自 712测试）＋结构单、观点清单、预读提词单、台账（新建，格式依契约/宪法） |
 | 结构单模板·映射表 | `templates/结构单模板.md` | 内置「用途类型→元框架变奏」映射（借鉴型→经验借鉴型；趋势研判型→综合比较型＋研判槽＋低置信度图纸；差距追赶型→经验借鉴型＋对照中国加重；不属三型→综合比较型记偏离） |
-| 四道闸 | `direction_workflow/gates/` | `precheck.py`（六项机械读数，军事化词表引 `strategic_response_workflow/shared_schema/register_blacklist.md` 原路径不复制）＋`闸门规程.md`（三道 LLM 辅助闸零裁量规程） |
+| 四道闸 | `direction_workflow/gates/` | `precheck.py`（六项机械读数，军事化词表读包内快照 `gates/register_blacklist.md`；真源 `strategic_response_workflow/shared_schema/register_blacklist.md`，真源改动后重新快照）＋`闸门规程.md`（三道 LLM 辅助闸零裁量规程） |
 | 运行产物 | `direction_workflow/runs/<id>/` | 形制按宪法§三：方向书/结构单/generated/outputs/gates/ledger_row |
 | skill 快照 | `direction_workflow/_skill_snapshots/` | 三个 skill 的 SKILL.md 副本（skills 目录在 git 仓外，无此快照则无版本记录） |
 
@@ -135,10 +135,12 @@
 ```
 direction_workflow/
 ├─ README.md              本文件
+├─ 移植说明.md             整包移植指南（相对路径约定/skill 安装法/真源同步关系/外部依赖清单）
 ├─ _问题反馈录.md          全程问题记录（A 级待拍板置顶／B 级附理由／C 级归档）
-├─ _skill_snapshots/      三个 skill 的 SKILL.md 快照
-├─ skills/                report-clarify-v2、topic-material-search-v2（转正）
+├─ _skill_snapshots/      三个 skill 的 SKILL.md 快照（历史留痕，不改）
+├─ blueprints/            三张图纸的包内快照（真源在 records/，改真源后重新快照）
+├─ skills/                report-clarify-v2、topic-material-search-v2（转正）＋ policy-report-assembler、yongjun-thinking、cao-thinking（随包副本）
 ├─ templates/             六模板（含结构单模板内置映射表）
-├─ gates/                 precheck.py＋闸门规程.md
+├─ gates/                 precheck.py＋闸门规程.md＋register_blacklist.md（词表快照）
 └─ runs/                  2026-07-12-中小学科学教育（试跑）、2026-07-13-拔尖创新人才（首单）
 ```

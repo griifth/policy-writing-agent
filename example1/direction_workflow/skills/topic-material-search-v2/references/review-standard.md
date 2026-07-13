@@ -1,5 +1,8 @@
 # DeepSeek Review Standard & Call
 
+> 路径约定：本文件内相对路径一律以 direction_workflow/ 为根。`<REPO>` ＝ 本包 direction_workflow/ 的上一级目录（仓库根）。
+> DS 调用依赖包外旧引擎 `<REPO>/strategic_response_workflow/`（外部依赖，见 移植说明.md）。
+
 DeepSeek is a stateless lightweight reviewer. Assemble `/tmp/review_in.txt` = the review standard below + `【待审材料】` + the full text of all category files, call DS, read its verdict, patch gaps, loop until 通过 or 4 rounds.
 
 ## Review standard (put this verbatim at the top of /tmp/review_in.txt)
@@ -29,7 +32,7 @@ Then append `\n\n【与用户共同确定的检索方案（用于判定覆盖度
 ## DS call (run from the workflow dir)
 
 ```bash
-cd "/Users/hujingkai/Documents/New project/example1/strategic_response_workflow/workflow"
+cd "<REPO>/strategic_response_workflow/workflow"
 python3 -c "
 from llm_client import create_llm_client
 c = create_llm_client('deepseek')

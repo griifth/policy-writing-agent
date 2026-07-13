@@ -13,12 +13,14 @@ description: >-
 
 # Topic Material Search v2（双模式：侦察 / 全量）
 
+> 路径约定：本文件内相对路径一律以 direction_workflow/ 为根。
+
 两个速度档，**同一套溯源纪律**：
 
 - **侦察模式（SCOUT MODE）· 新增** —— 为**定向点选**服务：十几条权威线索、分钟级、不走完整复审循环，产出一页纸**态势速览**。由 `report-clarify-v2` 触点一调用。
 - **全量模式（FULL MODE）· 原逻辑保留** —— 为**写作供料**服务：co-design 检索方案 → 分区/分类 fan-out → DS 复审循环 → 可复用料包（retrieval_outputs）。方向书签字后主力上，并可吃**方向书入参**。
 
-Do not use NotebookLM. 仓库根 `<ROOT>` = `/Users/hujingkai/Documents/New project/example1`（路径含空格，命令加引号）。本沙箱 `<ROOT>/712测试`。
+Do not use NotebookLM. 仓库根 `<ROOT>` ＝ 本包 direction_workflow/ 的上一级目录（路径可能含空格，命令加引号）。本沙箱 `<ROOT>/712测试`（历史沙箱目录，仅原机存在；整包移植后不适用）。
 
 ## 与原版 topic-material-search 的差异
 
@@ -46,7 +48,7 @@ Do not use NotebookLM. 仓库根 `<ROOT>` = `/Users/hujingkai/Documents/New proj
 
 1. **接主题**：入参仅需 `topic`（可选 `notes` 传用户已知偏好）。不做 co-design 问答（那是全量模式的事）。
 2. **一波检索（十几条）**：围绕主题 WebSearch/WebFetch 打 3–5 组查询——(a) 最新官方文件/纲要/规划（近 2 年）(b) 国际组织/权威统计 (c) **各方争论点/不同主张**（分歧轴原料）(d) 反直觉信号/被质疑的数据。可直接自己搜，或派 1 个 scout 子 agent 快采；**不分区 fan-out、不派 organizer**。
-3. **凝练成态势速览四栏**（按 [../../templates/态势速览模板.md](../../templates/态势速览模板.md)）：
+3. **凝练成态势速览四栏**（按 `templates/态势速览模板.md`）：
    - ① **最近谁动了什么**：3–5 条硬事实，每条带源 + 证据状态。
    - ② **分歧轴**：从检索到的不同主张里抽 2–4 根轴，每轴左右端中立对称陈述——两端即候选倾向箭头。
    - ③ **反直觉信号与数据缺口**：与主流叙事相反的信号；决策需要却公开查不到的空白。
@@ -100,11 +102,11 @@ Optional (when the pack will feed a report workflow):
 
 Run in order. Read the referenced file only when that step is active.
 
-1. **Resolve target & schema.** 若给 `report-type`，读 `report_modules/<report-type>/module.yaml` 取 `retrieval_types`（＝输出文件名）。Confirm material contract & DS call: [references/environment.md](references/environment.md)。**若带方向书入参**：先据禁区剪枝候选实体/角度，据倾向箭头标注加权项，把侦察线索登记进 dedup key list。
-2. **Co-design the search plan with the user.** Draft `category × entity` matrix, ASK the user to set granularity/angles (which entities, how deep per category, which micro-detail angles, source/language prefs). Only after confirm, finalize `runs/<run-id>/search_plan.md`. Method: [references/search-plan-method.md](references/search-plan-method.md)。方向书入参已定的项作为默认带入，仍由用户可改。
-3. **Collect (fan-out by partition).** Launch parallel collector sub-agents — one per plan partition — each running real WebSearch/WebFetch, returning **sourced fragments**. Sourcing standard: [references/sourcing-standard.md](references/sourcing-standard.md)。侦察种子不重复检索。
+1. **Resolve target & schema.** 若给 `report-type`，读 `report_modules/<report-type>/module.yaml` 取 `retrieval_types`（＝输出文件名）。Confirm material contract & DS call: `skills/topic-material-search-v2/references/environment.md`。**若带方向书入参**：先据禁区剪枝候选实体/角度，据倾向箭头标注加权项，把侦察线索登记进 dedup key list。
+2. **Co-design the search plan with the user.** Draft `category × entity` matrix, ASK the user to set granularity/angles (which entities, how deep per category, which micro-detail angles, source/language prefs). Only after confirm, finalize `runs/<run-id>/search_plan.md`. Method: `skills/topic-material-search-v2/references/search-plan-method.md`。方向书入参已定的项作为默认带入，仍由用户可改。
+3. **Collect (fan-out by partition).** Launch parallel collector sub-agents — one per plan partition — each running real WebSearch/WebFetch, returning **sourced fragments**. Sourcing standard: `skills/topic-material-search-v2/references/sourcing-standard.md`。侦察种子不重复检索。
 4. **Organize (fan-out by category).** One organizer per `retrieval_type`/category, given all relevant fragments + shared **dedup key list**（含侦察种子）. Each writes `runs/<run-id>/retrieval_outputs/<type>.md` in 二段式. **Cross-category dedup is YOUR job (barrier)** after all organizers return.
-5. **Review micro-loop with DeepSeek.** Assemble organized pack + review standard into `/tmp/review_in.txt`, call DS, act on per-category verdict/gaps by **re-dispatching sub-agents** (not hand-patching). Loop until 通过 or 4 rounds. Standard + exact call: [references/review-standard.md](references/review-standard.md). Save `ds_review_round<N>.md`.
+5. **Review micro-loop with DeepSeek.** Assemble organized pack + review standard into `/tmp/review_in.txt`, call DS, act on per-category verdict/gaps by **re-dispatching sub-agents** (not hand-patching). Loop until 通过 or 4 rounds. Standard + exact call: `skills/topic-material-search-v2/references/review-standard.md`. Save `ds_review_round<N>.md`.
 6. **Finalize the pack.** Verify every `retrieval_type` file exists, non-shallow, cross-category dedup done. Keep `search_plan.md` and DS verdicts alongside.
 7. **Hand off.** Report pack location. If `report-type` given: `runner.py --report-type <type> ... --reuse-materials-run <run-id>` (see environment.md). Offer to run; don't run automatically unless asked.
 
