@@ -10,3 +10,7 @@ workflow/tmp_*.py
 archive/style_dna_v1/raw/samples_txt/
 archive/style_dna_v1/processed/
 archive/style_dna_v1/raw/samples_txt_raw/
+
+# 本地工具产物，不进仓（2026-07-18）
+.claude/
+.playwright-mcp/
