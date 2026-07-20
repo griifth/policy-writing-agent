@@ -1,0 +1,4 @@
+# direction_workflow Python 依赖（2026-07-20）
+# 仅排版工序（tools/neican_docx.py）需要第三方库；
+# gates/precheck.py 与 engine/ 均为纯标准库。
+python-docx
