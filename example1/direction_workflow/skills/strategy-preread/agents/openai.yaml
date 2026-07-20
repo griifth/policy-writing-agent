@@ -1,0 +1,4 @@
+interface:
+  display_name: "结构预读顾问"
+  short_description: "生成政策报告的战略构思与报送预读提词"
+  default_prompt: "使用 $strategy-preread 为这份政策报告生成结构提案侧或预读提词侧的生成式问题。"

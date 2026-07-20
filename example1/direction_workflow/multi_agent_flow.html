@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多智能体协同流程图 · 装配式政策报告工作流</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.2em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .canvas-container {
+            padding: 40px;
+            overflow-x: auto;
+            background: #f8f9fa;
+        }
+
+        .flow-canvas {
+            min-width: 1400px;
+            position: relative;
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        /* 泳道样式 */
+        .swimlane {
+            position: relative;
+            margin-bottom: 30px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 20px;
+            background: #fafafa;
+        }
+
+        .swimlane-title {
+            position: absolute;
+            top: -15px;
+            left: 20px;
+            background: #667eea;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+
+        .swimlane-content {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        /* 智能体节点样式 */
+        .agent-node {
+            background: white;
+            border: 2px solid #667eea;
+            border-radius: 12px;
+            padding: 15px 20px;
+            min-width: 180px;
+            text-align: center;
+            position: relative;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .agent-node:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+        }
+
+        .agent-node.orchestrator {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #764ba2;
+            min-width: 220px;
+        }
+
+        .agent-node.sub-agent {
+            border-color: #4ecdc4;
+            background: #f0fdfc;
+        }
+
+        .agent-node.deepseek {
+            border-color: #f093fb;
+            background: #fdf0fd;
+        }
+
+        .agent-node.script {
+            border-color: #ffa502;
+            background: #fff8e7;
+        }
+
+        .agent-node.human {
+            border-color: #ff6b6b;
+            background: #fff0f0;
+        }
+
+        .agent-icon {
+            font-size: 2em;
+            margin-bottom: 8px;
+        }
+
+        .agent-name {
+            font-weight: 600;
+            font-size: 1em;
+            margin-bottom: 5px;
+        }
+
+        .agent-role {
+            font-size: 0.85em;
+            color: #666;
+            line-height: 1.4;
+        }
+
+        .agent-node.orchestrator .agent-role {
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .agent-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #ff6b6b;
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75em;
+            font-weight: bold;
+        }
+
+        /* 箭头样式 */
+        .arrow {
+            position: relative;
+            width: 60px;
+            height: 2px;
+            background: #667eea;
+            margin: 0 10px;
+        }
+
+        .arrow::after {
+            content: "";
+            position: absolute;
+            right: 0;
+            top: -4px;
+            border-left: 8px solid #667eea;
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+        }
+
+        .arrow-label {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.75em;
+            color: #667eea;
+            white-space: nowrap;
+        }
+
+        /* 并行组 */
+        .parallel-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 15px;
+            background: #e8f4f8;
+            border-radius: 12px;
+            border: 2px dashed #4ecdc4;
+        }
+
+        .parallel-label {
+            text-align: center;
+            font-size: 0.85em;
+            color: #4ecdc4;
+            font-weight: 600;
+        }
+
+        /* 数据流 */
+        .data-flow {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 20px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+        }
+
+        .data-item {
+            background: #f8f9fa;
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            border: 1px solid #e0e0e0;
+        }
+
+        /* 图例 */
+        .legend {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 15px;
+            background: white;
+            border-radius: 20px;
+            border: 1px solid #e0e0e0;
+            font-size: 0.9em;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+
+        /* 时间线 */
+        .timeline {
+            position: relative;
+            margin: 40px 0;
+            padding-left: 30px;
+        }
+
+        .timeline::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: linear-gradient(to bottom, #667eea, #764ba2);
+            border-radius: 2px;
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 30px;
+            padding-left: 30px;
+        }
+
+        .timeline-item::before {
+            content: "";
+            position: absolute;
+            left: -34px;
+            top: 5px;
+            width: 16px;
+            height: 16px;
+            background: white;
+            border: 4px solid #667eea;
+            border-radius: 50%;
+        }
+
+        .timeline-item.touchpoint::before {
+            border-color: #ff6b6b;
+            background: #ff6b6b;
+        }
+
+        .timeline-content {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .timeline-item:hover .timeline-content {
+            border-color: #667eea;
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.2);
+        }
+
+        .timeline-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .timeline-agents {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 10px 0;
+        }
+
+        .timeline-agent-tag {
+            background: #e8f4f8;
+            color: #4ecdc4;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .timeline-agent-tag.deepseek {
+            background: #fdf0fd;
+            color: #f093fb;
+        }
+
+        .timeline-agent-tag.human {
+            background: #fff0f0;
+            color: #ff6b6b;
+        }
+
+        .timeline-desc {
+            color: #666;
+            font-size: 0.95em;
+            line-height: 1.6;
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .flow-canvas {
+                min-width: 100%;
+                padding: 20px;
+            }
+
+            .swimlane-content {
+                flex-direction: column;
+            }
+
+            .arrow {
+                width: 2px;
+                height: 40px;
+                margin: 10px 0;
+            }
+
+            .arrow::after {
+                right: -5px;
+                top: auto;
+                bottom: 0;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 8px solid #667eea;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 多智能体协同流程图</h1>
+            <p>装配式政策报告工作流 · 装配工 orchestrator ＋ 子代理并行执行</p>
+        </div>
+
+        <!-- 图例 -->
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: linear-gradient(135deg, #667eea, #764ba2);"></div>
+                <span>装配工（Orchestrator）</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #4ecdc4;"></div>
+                <span>子代理（Sub-agent）</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #f093fb;"></div>
+                <span>DeepSeek</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ffa502;"></div>
+                <span>脚本</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ff6b6b;"></div>
+                <span>人/代理决策</span>
+            </div>
+        </div>
+
+        <div class="canvas-container">
+            <div class="flow-canvas">
+                <!-- 泳道 1：侦察与定向 -->
+                <div class="swimlane">
+                    <div class="swimlane-title">① 侦察与定向</div>
+                    <div class="swimlane-content">
+                        <div class="agent-node orchestrator">
+                            <div class="agent-icon">👷</div>
+                            <div class="agent-name">装配工</div>
+                            <div class="agent-role">Orchestrator<br>读图纸/建目录/写实体提示词</div>
+                        </div>
+                        <div class="arrow">
+                            <div class="arrow-label">派生</div>
+                        </div>
+                        <div class="agent-node sub-agent">
+                            <div class="agent-icon">🔍</div>
+                            <div class="agent-name">侦察子代理</div>
+                            <div class="agent-role">真联网检索<br>态势速览</div>
+                        </div>
+                        <div class="arrow">
+                            <div class="arrow-label">返回</div>
+                        </div>
+                        <div class="agent-node orchestrator">
+                            <div class="agent-icon">👷</div>
+                            <div class="agent-name">装配工</div>
+                            <div class="agent-role">组装态势速览<br>落盘 outputs/</div>
+                        </div>
+                        <div class="arrow">
+                            <div class="arrow-label">派生</div>
+                        </div>
+                        <div class="agent-node human">
+                            <div class="agent-icon">👤</div>
+                            <div class="agent-name">触点一子代理</div>
+                            <div class="agent-role">教科院研究员人设<br>判型＋方向书</div>
+                            <div class="agent-badge">★</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 泳道 2：结构单与检索 -->
+                <div class="swimlane">
+                    <div class="swimlane-title">② 结构单与全量检索</div>
+                    <div class="swimlane-content">
+                        <div class="agent-node orchestrator">
+                            <div class="agent-icon">👷</div>
+                            <div class="agent-name">装配工</div>
+                            <div class="agent-role">实例化结构单<br>写检索实体提示词</div>
+                        </div>
+                        <div class="arrow">
+                            <div class="arrow-label">派生</div>
+                        </div>
+                        <div class="parallel-group">
+                            <div class="parallel-label">并行采集</div>
+                            <div class="agent-node sub-agent">
+                                <div class="agent-icon">📚</div>
+                                <div class="agent-name">采集子代理 #1</div>
+                                <div class="agent-role">国际制度菜单<br>建议锚</div>
+                            </div>
+                            <div class="agent-node sub-agent">
+                                <div class="agent-icon">📊</div>
+                                <div class="agent-name">采集子代理 #2</div>
+                                <div class="agent-role">国内需求供给<br>归因</div>
+                            </div>
+                        </div>
+                        <div class="arrow">
+                            <div class="arrow-label">返回</div>
+                        </div>
+                        <div class="agent-node orchestrator">
+                            <div class="agent-icon">👷</div>
+                            <div class="agent-name">装配工</div>
+                            <div class="agent-role">跨区去重<br>汇装料包</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 泳道 3：立论与组稿 -->
+                <div class="swimlane">
+                    <div class="swimlane-title">③ 立论与组稿（DeepSeek）</div>
+                    <div class="swimlane-content">
+                        <div class="agent-node orchestrator">
+                            <div class="agent-icon">👷</div>
+                            <div class="agent-name">装配工</div>
+                            <div class="agent-role">写立论实体提示词<br>照录结构单/契约/槽位</div>
+                        </div>
+                        <div class="arrow">
+                            <div class="arrow-label">调用</div>
+                        </div>
+                        <div class="agent-node deepseek">
+                            <div class="agent-icon">🤖</div>
+                            <div class="agent-name">DeepSeek</div>
+                            <div class="agent-role">立论<br>观点清单</div>
+                        </div>
+                        <div class="arrow">
+                            <div class="arrow-label">返回</div>
+                        </div>
+                        <div class="agent-node orchestrator">
+                            <div class="agent-icon">👷</div>
+                            <div class="agent-name">装配工</div>
+                            <div class="agent-role">组装观点清单<br>落盘 outputs/</div>
+                        </div>
+                        <div class="arrow">
+                            <div class="arrow-label">派生</div>
+                        </div>
+                        <div class="agent-node human">
+                            <div class="agent-icon">👤</div>
+                            <div class="agent-name">触点二子代理</div>
+                            <div class="agent-role">教科院研究员人设<br>逐行勾/叉/改</div>
+                            <div class="agent-badge">★</div>
+                        </div>
+                        <div class="arrow">
+                            <div class="arrow-label">返回</div>
+                        </div>
+                        <div class="agent-node orchestrator">
+                            <div class="agent-icon">👷</div>
+                            <div class="agent-name">装配工</div>
+                            <div class="agent-role">观点逻辑确认<br>写写作实体提示词</div>
+                        </div>
+                        <div class="arrow">
+                            <div class="arrow-label">调用</div>
+                        </div>
+                        <div class="agent-node deepseek">
+                            <div class="agent-icon">🤖</div>
+                            <div class="agent-name">DeepSeek</div>
+                            <div class="agent-role">组稿<br>成稿＋边角料箱</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 泳道 4：四闸与交付 -->
+                <div class="swimlane">
+                    <div class="swimlane-title">④ 四闸与交付工序</div>
+                    <div class="swimlane-content">
+                        <div class="agent-node orchestrator">
+                            <div class="agent-icon">👷</div>
+                            <div class="agent-name">装配工</div>
+                            <div class="agent-role">跑四闸<br>主线保真检查</div>
+                        </div>
+                        <div class="arrow">
+                            <div class="arrow-label">并行</div>
+                        </div>
+                        <div class="agent-node sub-agent">
+                            <div class="agent-icon">🎓</div>
+                            <div class="agent-name">预读子代理</div>
+                            <div class="agent-role">yongjun-thinking<br>cao-thinking</div>
+                        </div>
+                        <div class="agent-node sub-agent">
+                            <div class="agent-icon">✂️</div>
+                            <div class="agent-name">清稿子代理</div>
+                            <div class="agent-role">去 AI 痕迹<br>观点清晰化</div>
+                        </div>
+                        <div class="parallel-group">
+                            <div class="parallel-label">两级瘦身</div>
+                            <div class="agent-node sub-agent">
+                                <div class="agent-icon">🔬</div>
+                                <div class="agent-name">瘦身子代理 #1</div>
+                                <div class="agent-role">诊断冗余<br>生成改写提示词</div>
+                            </div>
+                            <div class="agent-node sub-agent">
+                                <div class="agent-icon">✍️</div>
+                                <div class="agent-name">瘦身子代理 #2</div>
+                                <div class="agent-role">按新结构重写<br>聚拢版</div>
+                            </div>
+                        </div>
+                        <div class="arrow">
+                            <div class="arrow-label">返回</div>
+                        </div>
+                        <div class="agent-node orchestrator">
+                            <div class="agent-icon">👷</div>
+                            <div class="agent-name">装配工</div>
+                            <div class="agent-role">汇装<br>写排版中转稿</div>
+                        </div>
+                        <div class="arrow">
+                            <div class="arrow-label">调用</div>
+                        </div>
+                        <div class="agent-node script">
+                            <div class="agent-icon">📜</div>
+                            <div class="agent-name">排版脚本</div>
+                            <div class="agent-role">neican_docx.py<br>内参版式 docx</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 数据流 -->
+                <div style="margin-top: 40px;">
+                    <h3 style="text-align: center; color: #667eea; margin-bottom: 20px;">📦 数据流（落盘产物）</h3>
+                    <div class="data-flow">
+                        <div class="data-item">态势速览.md</div>
+                        <span>→</span>
+                        <div class="data-item">方向书.md</div>
+                        <span>→</span>
+                        <div class="data-item">结构单.md</div>
+                        <span>→</span>
+                        <div class="data-item">料包.md</div>
+                        <span>→</span>
+                        <div class="data-item">观点清单.md</div>
+                        <span>→</span>
+                        <div class="data-item">勾选记录.md</div>
+                        <span>→</span>
+                        <div class="data-item">论证结构单.md</div>
+                        <span>→</span>
+                        <div class="data-item">成稿.md</div>
+                        <span>→</span>
+                        <div class="data-item">初稿_可阅读.md</div>
+                        <span>→</span>
+                        <div class="data-item">聚拢版.md</div>
+                        <span>→</span>
+                        <div class="data-item" style="background: #fff3cd; font-weight: 600;">初稿_可交付.docx</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 时间线视图 -->
+        <div style="padding: 40px;">
+            <h2 style="text-align: center; color: #667eea; margin-bottom: 30px;">⏱️ 多智能体协同时间线</h2>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-title">第 0 步：开工</div>
+                        <div class="timeline-agents">
+                            <span class="timeline-agent-tag">装配工</span>
+                        </div>
+                        <div class="timeline-desc">读三张图纸（元框架 v2／契约／宪法），建 run 目录，验 DeepSeek 密钥</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-title">第 1 步：侦察</div>
+                        <div class="timeline-agents">
+                            <span class="timeline-agent-tag">装配工</span>
+                            <span class="timeline-agent-tag">侦察子代理</span>
+                        </div>
+                        <div class="timeline-desc">装配工派侦察子代理真联网检索，返回后组装态势速览落盘</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item touchpoint">
+                    <div class="timeline-content">
+                        <div class="timeline-title">★ 第 2 步：触点一·定方向</div>
+                        <div class="timeline-agents">
+                            <span class="timeline-agent-tag">装配工</span>
+                            <span class="timeline-agent-tag human">触点一子代理（教科院研究员）</span>
+                        </div>
+                        <div class="timeline-desc">装配工派触点一子代理代行判型＋签方向书，判定树走查路径＋前置闸结论全留痕</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-title">第 3 步：结构单</div>
+                        <div class="timeline-agents">
+                            <span class="timeline-agent-tag">装配工</span>
+                        </div>
+                        <div class="timeline-desc">装配工按判型主线实例化结构单（判型轴＋铁三角覆盖轴＋主线段-节问题链）</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-title">第 4 步：全量检索</div>
+                        <div class="timeline-agents">
+                            <span class="timeline-agent-tag">装配工</span>
+                            <span class="timeline-agent-tag">采集子代理 #1</span>
+                            <span class="timeline-agent-tag">采集子代理 #2</span>
+                        </div>
+                        <div class="timeline-desc">装配工写检索实体提示词，派 2 个采集子代理并行真联网搜索，返回后跨区去重汇装料包</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-title">第 5 步：立论</div>
+                        <div class="timeline-agents">
+                            <span class="timeline-agent-tag">装配工</span>
+                            <span class="timeline-agent-tag deepseek">DeepSeek</span>
+                        </div>
+                        <div class="timeline-desc">装配工写立论实体提示词（照录结构单/契约/槽位原文），调 DeepSeek 产出观点清单</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item touchpoint">
+                    <div class="timeline-content">
+                        <div class="timeline-title">★ 第 6 步：触点二·认观点</div>
+                        <div class="timeline-agents">
+                            <span class="timeline-agent-tag">装配工</span>
+                            <span class="timeline-agent-tag human">触点二子代理（教科院研究员）</span>
+                        </div>
+                        <div class="timeline-desc">装配工派触点二子代理逐行勾/叉/改，勾选率＜50% 自动回触点一</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-title">第 7 步：观点逻辑确认</div>
+                        <div class="timeline-agents">
+                            <span class="timeline-agent-tag">装配工</span>
+                        </div>
+                        <div class="timeline-desc">装配工产《论证结构单》（归并/定序/承接/一因一策映射），默认自动 pass</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-title">第 8 步：组稿</div>
+                        <div class="timeline-agents">
+                            <span class="timeline-agent-tag">装配工</span>
+                            <span class="timeline-agent-tag deepseek">DeepSeek</span>
+                        </div>
+                        <div class="timeline-desc">装配工写写作实体提示词，调 DeepSeek 产出成稿＋边角料箱＋来源锚</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-title">第 9 步：四闸＋主线保真</div>
+                        <div class="timeline-agents">
+                            <span class="timeline-agent-tag">装配工</span>
+                        </div>
+                        <div class="timeline-desc">装配工跑溯源/承重/方向保真/语域预检四闸＋主线保真五项，只出违例清单</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-title">第 10 步：预读提词</div>
+                        <div class="timeline-agents">
+                            <span class="timeline-agent-tag">装配工</span>
+                            <span class="timeline-agent-tag">预读子代理（yongjun）</span>
+                            <span class="timeline-agent-tag">预读子代理（cao）</span>
+                        </div>
+                        <div class="timeline-desc">装配工派预读子代理真调 yongjun-thinking＋cao-thinking，出考题预告</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-title">第 11 步：清稿</div>
+                        <div class="timeline-agents">
+                            <span class="timeline-agent-tag">装配工</span>
+                            <span class="timeline-agent-tag">清稿子代理</span>
+                        </div>
+                        <div class="timeline-desc">装配工派清稿子代理按内核四阶段去 AI 痕迹、观点清晰化、术语白话化</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-title">第 12 步：瘦身聚拢</div>
+                        <div class="timeline-agents">
+                            <span class="timeline-agent-tag">装配工</span>
+                            <span class="timeline-agent-tag">瘦身子代理 #1</span>
+                            <span class="timeline-agent-tag">瘦身子代理 #2</span>
+                        </div>
+                        <div class="timeline-desc">装配工派两级瘦身子代理：第一级诊断冗余＋生成改写提示词，第二级按新结构重写</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-title">第 13 步：排版</div>
+                        <div class="timeline-agents">
+                            <span class="timeline-agent-tag">装配工</span>
+                            <span class="timeline-agent-tag">排版脚本</span>
+                        </div>
+                        <div class="timeline-desc">装配工写中转稿，调 neican_docx.py 导出内参版式 docx，三项自检</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item touchpoint">
+                    <div class="timeline-content">
+                        <div class="timeline-title">★ 第 14 步：收货＋台账</div>
+                        <div class="timeline-agents">
+                            <span class="timeline-agent-tag">装配工</span>
+                            <span class="timeline-agent-tag human">用户</span>
+                        </div>
+                        <div class="timeline-desc">装配工交五样（docx＋可阅读＋底稿＋附件＋定夺清单），产《晨报》待追认，回填台账</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 协同要点 -->
+        <div style="padding: 40px; background: #f8f9fa;">
+            <h2 style="text-align: center; color: #667eea; margin-bottom: 30px;">🔑 多智能体协同要点</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                <div style="background: white; border-radius: 12px; padding: 20px; border: 2px solid #e0e0e0;">
+                    <h3 style="color: #667eea; margin-bottom: 15px;">1. 装配工是唯一 orchestrator</h3>
+                    <p style="color: #666; line-height: 1.8;">装配工不亲手做具体任务，只负责：读图纸、写实体提示词、派子代理、守闸门、汇装产物、产《晨报》。所有具体执行（侦察、采集、决策、清稿、瘦身、预读）都派子代理。</p>
+                </div>
+                <div style="background: white; border-radius: 12px; padding: 20px; border: 2px solid #e0e0e0;">
+                    <h3 style="color: #4ecdc4; margin-bottom: 15px;">2. 子代理在独立上下文执行</h3>
+                    <p style="color: #666; line-height: 1.8;">每个子代理在干净的新上下文启动，只接收装配工给的输入（实体提示词＋材料），完成后返回结果给装配工。避免单一 agent 被大量中间产物污染。</p>
+                </div>
+                <div style="background: white; border-radius: 12px; padding: 20px; border: 2px solid #e0e0e0;">
+                    <h3 style="color: #f093fb; margin-bottom: 15px;">3. DeepSeek 只做内容生产</h3>
+                    <p style="color: #666; line-height: 1.8;">立论（契约②）和组稿（契约③）走 DeepSeek（engine/run_entity.py），其余工序全部由 agent/子代理执行。DeepSeek 不能联网、不能读盘，靠 --attach 内联材料。</p>
+                </div>
+                <div style="background: white; border-radius: 12px; padding: 20px; border: 2px solid #e0e0e0;">
+                    <h3 style="color: #ff6b6b; margin-bottom: 15px;">4. 两触点必须真停</h3>
+                    <p style="color: #666; line-height: 1.8;">触点一（判型＋方向书）和触点二（认观点）必须真停，由真人或代理子代里拍板。代理预演模式下，派教科院研究员人设子代理代行，打 [待主人追认] 标。</p>
+                </div>
+                <div style="background: white; border-radius: 12px; padding: 20px; border: 2px solid #e0e0e0;">
+                    <h3 style="color: #ffa502; margin-bottom: 15px;">5. 并行子代理提高效率</h3>
+                    <p style="color: #666; line-height: 1.8;">全量检索派 2 个采集子代理并行（国际制度菜单＋国内需求归因），瘦身聚拢派 2 级子代理（诊断＋重写），大幅缩短运行时间。</p>
+                </div>
+                <div style="background: white; border-radius: 12px; padding: 20px; border: 2px solid #e0e0e0;">
+                    <h3 style="color: #764ba2; margin-bottom: 15px;">6. 全程落盘可复盘</h3>
+                    <p style="color: #666; line-height: 1.8;">每个子代理的输入（实体提示词）和输出（产物）都落盘 runs/&lt;id&gt;/，装配工的 orchestration 也留痕（generated/、gates/、ledger_row.md），可复盘"机器当时被要求干什么"。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 点击节点高亮
+        document.querySelectorAll('.agent-node').forEach(node => {
+            node.addEventListener('click', function() {
+                document.querySelectorAll('.agent-node').forEach(n => n.style.boxShadow = '');
+                this.style.boxShadow = '0 0 0 4px #667eea';
+            });
+        });
+
+        // 滚动动画
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.timeline-item, .swimlane').forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(20px)';
+            el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+            observer.observe(el);
+        });
+    </script>
+</body>
+</html>

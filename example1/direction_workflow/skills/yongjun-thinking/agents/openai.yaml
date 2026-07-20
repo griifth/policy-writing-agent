@@ -1,4 +1,0 @@
-interface:
-  display_name: "永军研究方法论"
-  short_description: "用于政策报告定题、立论、分类与具体文本预读提词的研究方法论顾问"
-  default_prompt: "Use $yongjun-thinking to frame this policy-report topic and propose decision-oriented arguments."

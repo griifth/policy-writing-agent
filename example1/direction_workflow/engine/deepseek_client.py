@@ -8,7 +8,7 @@
   - 逐调用 thinking_enabled 覆盖：供逐级降级重试（原参 → effort=low → 关 thinking）使用，
     降级梯子本身在 run_entity.py（与旧引擎 report_pipeline._ask_deepseek 同款）。
 本副本相对旧引擎的差异（均为独立可用所需，不改行为）：
-  1. PROJECT_ROOT 上移两级指向 example1/，默认 .env 仍是旧引擎既有位置 example1/.env
+  1. PROJECT_ROOT 上移两级指向包的上一级目录，默认 .env 即该目录下的 .env
      ——密钥不迁移、不复制、不入本目录；
   2. chat() 调用后在 self.last_meta 留存 token 用量与 finish_reason（run_entity 留痕用），
      不改变返回值与异常行为。
@@ -28,7 +28,7 @@ except ImportError:  # pragma: no cover - 运行时给出更清晰的依赖错�
     OpenAI = None  # type: ignore[assignment]
 
 
-# engine/ 位于 example1/direction_workflow/engine/，parents[2] = example1/
+# engine/ 位于 direction_workflow/engine/，parents[2] = 包的上一级目录
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 # 旧引擎既有 .env 位置（example1/.env）；strategic_response_workflow/.env 亦可经
 # 环境变量 DEEPSEEK_ENV_PATH 或 run_entity.py --env 指定。

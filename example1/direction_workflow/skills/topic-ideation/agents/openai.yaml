@@ -1,0 +1,4 @@
+interface:
+  display_name: "定题立论顾问"
+  short_description: "用于政策报告定题、立论、分类与具体文本预读提词的研究方法论顾问"
+  default_prompt: "Use $topic-ideation to frame this policy-report topic and propose decision-oriented arguments."

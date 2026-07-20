@@ -44,14 +44,13 @@ python3 engine/run_entity.py \
 
 ## 三、密钥配置说明（密钥零泄漏纪律）
 
-- **本目录不存放任何密钥。** 密钥仍从旧引擎既有 `.env` 位置读取：默认 `example1/.env`
-  （即 direction_workflow/ 上一级目录下的 `.env`，与旧引擎 `workflow/` 同源）。
-- 所需变量（见 `example1/.env.example`）：`DEEPSEEK_API_KEY`（必填）、`DEEPSEEK_BASE_URL`、
+- **本目录不存放任何密钥。** 密钥仍从旧引擎既有 `.env` 位置读取：默认为 **direction_workflow/ 上一级目录**下的 `.env`（按相对位置定位，与目录名无关）。
+- 所需变量：`DEEPSEEK_API_KEY`（必填）、`DEEPSEEK_BASE_URL`、
   `DEEPSEEK_MODEL`、`DEEPSEEK_TIMEOUT_SECONDS`、`DEEPSEEK_MAX_TOKENS`、
   `DEEPSEEK_REASONING_EFFORT`、`DEEPSEEK_THINKING_ENABLED`。
 - 覆盖方式：进程环境变量最优先；或 `--env` / `DEEPSEEK_ENV_PATH` 指定其他 `.env`
-  （路径须在 example1/ 项目内，越界即报错）。
-- 新机移植：整包拎走后在包外自备 `.env`（参照 `example1/.env.example`），
+  （路径须在包上一级目录范围内，越界即报错）。
+- 新机移植：整包拎走后在包的上一级目录自备 `.env`（变量清单见 依赖说明.md），
   用 `--env` 指向即可；**严禁把密钥写进 engine/ 或任何将提交的文件、严禁打印**。
 
 ## 四、血换的降级重试（务必保留，勿"简化"）
