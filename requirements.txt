@@ -1,4 +1,7 @@
 # direction_workflow Python 依赖（2026-07-20）
-# 仅排版工序（tools/neican_docx.py）需要第三方库；
-# gates/precheck.py 与 engine/ 均为纯标准库。
+# python-docx：排版工序（tools/neican_docx.py）必需。
+# openai：DeepSeek 执行引擎（engine/）走生产单时必需（OpenAI-compatible SDK）；
+#         试跑单 agent 直写不需要。
+# gates/precheck.py 为纯标准库。
 python-docx
+openai>=1.0
