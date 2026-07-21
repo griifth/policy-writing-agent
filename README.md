@@ -65,7 +65,7 @@ direction_workflow/
 ├─ blueprints/            三张图纸快照（元框架 v1/v2、元模块契约、调度宪法）
 ├─ skills/                policy-report-assembler（装配工）＋ order-dispatch（派单员/启动）
 │                         ＋ topic-ideation（定题立论顾问）＋ strategy-preread（结构预读顾问）
-│                         ＋ report-clarify-v2 ＋ topic-material-search-v2
+│                         ＋ run-review（成稿回顾可视化）＋ report-clarify-v2 ＋ topic-material-search-v2
 ├─ templates/             八模板（方向书/态势速览/结构单/观点清单/论证结构单/预读提词单/台账/接单提示词）
 ├─ gates/                 precheck.py＋闸门规程.md＋register_blacklist.md＋lexicon_blacklist.md
 ├─ finishing/             交付工序规程：清稿＋瘦身聚拢（两级 agent）＋排版

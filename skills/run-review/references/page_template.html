@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>run 回顾页</title>
+<style>
+  :root{
+    --ink:#1f2530; --ink2:#5f6b7a; --line:#d9dde3; --card:#ffffff; --bg:#eceef2;
+    --accent:#0f62fe; --accent-soft:#e3ecff; --mark:#fff4db; --mark-line:#e0a92f;
+    --grey:#9aa5b1; --danger-soft:#f1f2f4;
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{
+    margin:0; padding:20px 16px 60px; background:var(--bg); color:var(--ink);
+    font:14px/1.7 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif;
+  }
+  .wrap{max-width:1280px; margin:0 auto;}
+  h1{font-size:20px; line-height:1.5; margin:0 0 10px; font-weight:700;}
+  h2{font-size:15px; margin:0;}
+  h3{font-size:14px; margin:16px 0 8px; color:var(--ink2);}
+  p{margin:5px 0;}
+  ol,ul{margin:5px 0; padding-left:1.6em;}
+  li{margin:3px 0;}
+  code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px;}
+
+  /* 数据抽取备注横幅 */
+  #notes-banner{
+    background:var(--mark); border:1px solid var(--mark-line); border-radius:8px;
+    padding:6px 12px; margin-bottom:14px;
+  }
+  #notes-banner summary{cursor:pointer; font-size:14px; font-weight:600;}
+  #notes-banner ul{margin:6px 0 4px;}
+  #notes-banner li{font-size:14px;}
+  #notes-banner .nf{font-weight:600;}
+
+  /* 六区 */
+  details.zone{
+    background:var(--card); border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:8px;
+    margin:12px 0; padding:0; overflow:hidden; box-shadow:0 1px 3px rgba(20,30,50,.06);
+  }
+  details.zone > summary{
+    cursor:pointer; padding:10px 14px; font-size:15px; font-weight:700;
+    list-style:none; user-select:none; background:#fafbfc; border-bottom:1px solid transparent;
+  }
+  details.zone[open] > summary{border-bottom-color:var(--line);}
+  details.zone > summary::before{content:"▸ "; color:var(--accent);}
+  details.zone[open] > summary::before{content:"▾ ";}
+  details.zone > summary .count{font-weight:400; color:var(--ink2); font-size:12px; font-family:ui-monospace,Menlo,monospace;}
+  .zone-body{padding:12px 14px 16px;}
+  .empty{color:var(--ink2); font-size:14px; padding:8px 0;}
+  .src-note{
+    background:#f6f7f9; border:1px solid var(--line); border-radius:6px;
+    padding:8px 12px; font-size:14px; white-space:pre-wrap; margin-bottom:10px;
+  }
+
+  /* ① 单头卡 */
+  .meta-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:8px 16px; margin:8px 0 4px;}
+  .meta-item{font-size:14px; background:#f6f7f9; border-radius:6px; padding:6px 10px;}
+  .meta-item .k{display:block; color:var(--ink2); font-size:11px; font-family:ui-monospace,Menlo,monospace; margin-bottom:1px;}
+  .dir-block{margin-top:10px; border-top:1px dashed var(--line); padding-top:10px;}
+  .dir-row{margin:6px 0;}
+  .dir-row .k{display:block; color:var(--ink2); font-size:11px; font-family:ui-monospace,Menlo,monospace; margin-bottom:2px;}
+  .chip{
+    display:inline-block; background:var(--accent-soft); color:var(--accent);
+    border-radius:4px; padding:1px 8px; margin:2px 4px 2px 0; font-size:14px;
+  }
+
+  /* ② 主线链视图（三列泳道） */
+  .legend{font-size:14px; color:var(--ink2); margin-bottom:8px;}
+  .chain{display:grid; grid-template-columns:1.1fr 1.3fr 1fr; gap:10px;}
+  .chain-col{background:#f6f7f9; border:1px solid var(--line); border-radius:8px; padding:10px;}
+  .chain-col h3{margin:0 0 8px; font-size:13px; color:var(--ink2); font-family:ui-monospace,Menlo,monospace; letter-spacing:1px; border-bottom:1px solid var(--line); padding-bottom:6px;}
+  .chain-item{
+    display:block; width:100%; text-align:left; cursor:pointer;
+    background:var(--card); border:1px solid var(--line); border-radius:6px;
+    padding:6px 9px; margin:0 0 6px; font-size:14px; line-height:1.55; color:var(--ink);
+    font-family:inherit; transition:transform .06s ease, box-shadow .06s ease;
+  }
+  .chain-item:hover{transform:translateY(-1px); box-shadow:0 2px 8px rgba(20,30,50,.1); border-color:var(--accent);}
+  .chain-item .sub{display:block; color:var(--ink2); font-size:13px; margin-top:2px;}
+  .chain-item.active{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .chain-item.active .sub{color:#cfe0ff;}
+  .chain-item.linked{background:var(--mark); border-color:var(--mark-line);}
+  .chain-item.dim{opacity:.3;}
+  .chain-item .fid{font-weight:700; margin-right:6px; font-family:ui-monospace,Menlo,monospace; color:var(--accent);}
+  .chain-item.active .fid{color:#dbe7ff;}
+  @media (max-width:860px){ .chain{grid-template-columns:1fr;} }
+
+  /* ③ 观点清单区 */
+  .vp{border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin:0 0 10px; background:#fff;}
+  .vp.rejected{background:var(--danger-soft); color:var(--ink2);}
+  .vp-head{display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:4px;}
+  .vp-head .vid{font-weight:700; font-family:ui-monospace,Menlo,monospace;}
+  .badge{
+    display:inline-block; border-radius:4px; padding:0 7px; font-size:12px; line-height:1.8;
+    background:#eef0f3; color:var(--ink2); border:1px solid var(--line); font-family:ui-monospace,Menlo,monospace;
+  }
+  .badge.slot{background:var(--accent-soft); color:var(--accent); border-color:transparent;}
+  .badge.st-gou{background:#24a148; color:#fff; border-color:transparent;}
+  .badge.st-cha{background:#e5e6e8; color:#6b7280; border-color:transparent;}
+  .badge.st-gai{background:var(--mark); color:#8a6414; border-color:transparent;}
+  .vp .text{font-size:14px;}
+  .vp.rejected .text{color:var(--ink2);}
+  .vp .row{font-size:14px; color:var(--ink2); margin-top:5px;}
+  .vp .row .k{color:var(--grey); margin-right:6px; font-family:ui-monospace,Menlo,monospace; font-size:11px;}
+  .rev-panels{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px;}
+  .rev-panels > div{border:1px dashed var(--line); border-radius:6px; padding:6px 10px; font-size:14px;}
+  .rev-panels .k{display:block; color:var(--ink2); font-size:12px; margin-bottom:2px; font-family:ui-monospace,Menlo,monospace;}
+  @media (max-width:860px){ .rev-panels{grid-template-columns:1fr;} }
+  .fchip{display:inline-block; border:1px solid var(--line); border-radius:4px; padding:0 5px; margin:2px 3px 2px 0; font-size:12px; color:var(--ink2); font-family:ui-monospace,Menlo,monospace;}
+
+  /* ④ 料包区 */
+  .mat{border:1px solid var(--line); border-radius:6px; padding:8px 10px; margin:0 0 6px; background:#fff;}
+  .mat .mhead{display:flex; gap:8px; align-items:baseline; flex-wrap:wrap;}
+  .mat .fid{font-weight:700; font-family:ui-monospace,Menlo,monospace; color:var(--accent);}
+  .mat .summary{font-size:14px; margin-top:3px;}
+  .mat .meta-line{font-size:13px; color:var(--ink2); margin-top:3px; word-break:break-all;}
+  .cat-block{margin-bottom:14px;}
+  .cat-block h3{color:var(--ink); font-size:14px; background:#eef0f3; border-radius:4px; padding:4px 8px; display:inline-block;}
+  .scrap{border-left:3px solid var(--mark-line); background:#fffdf4; border-radius:0 6px 6px 0; padding:8px 10px; margin:0 0 8px;}
+  .scrap .why{font-size:14px; color:#6b5410; margin-top:3px;}
+  .scrap .src{font-size:12px; color:var(--ink2); margin-top:3px; word-break:break-all;}
+
+  /* ⑤ 闸门区 */
+  .gate{margin-bottom:12px;}
+  .gate h3{color:var(--ink);}
+  .gate .vio{
+    background:#f6f7f9; border:1px solid var(--line); border-radius:6px;
+    padding:7px 10px; margin:5px 0; font-size:14px; white-space:pre-wrap;
+  }
+  pre.raw{
+    background:#1f2530; color:#d7dee8; border-radius:8px;
+    padding:12px 14px; font-size:13px; line-height:1.6; overflow:auto; white-space:pre-wrap; word-break:break-all;
+  }
+
+  /* ⑥ 预读提词区 */
+  .voice-block{margin-bottom:14px;}
+  .voice-block h3{color:var(--ink);}
+  .sanfan{background:#f6f7f9; border:1px dashed var(--line); border-radius:6px; padding:8px 12px; font-size:14px; white-space:pre-wrap; margin-top:8px;}
+
+  footer.page-foot{
+    margin-top:20px; padding:10px 14px; text-align:center; font-size:13px; color:var(--ink2);
+    border-top:1px solid var(--line); font-family:ui-monospace,Menlo,monospace;
+  }
+
+  @media print{
+    body{background:#fff; padding:0;}
+    pre.raw{background:#f6f7f9; color:var(--ink);}
+    details.zone > *:not(summary), #notes-banner > *:not(summary){display:block !important;}
+    details.zone, #notes-banner{break-inside:avoid; box-shadow:none;}
+    .chain-item,.vp,.mat{break-inside:avoid;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <details id="notes-banner"><summary id="notes-summary">数据抽取备注</summary><ul id="notes-list"></ul></details>
+  <main id="zones"></main>
+  <footer class="page-foot">本页内容全部抽取自 run 内文件原文；历史单中的称谓为当时实况。</footer>
+</div>
+
+<script>
+"use strict";
+const RUN_DATA = /*__RUN_DATA__*/;
+
+(function(){
+  const D = Object.assign({
+    meta:{}, direction:{}, sections:[], viewpoints:[], selectionNote:"",
+    materialsNote:"", materials:[], scraps:[], gates:[],
+    precheck:{files:[]}, preread:[], decisions:[], extractionNotes:[]
+  }, RUN_DATA || {});
+  D.meta = D.meta || {}; D.direction = D.direction || {};
+  if(!D.precheck || !Array.isArray(D.precheck.files)) D.precheck = {files:[]};
+
+  const $ = s => document.querySelector(s);
+  function el(tag, cls, text){ const e=document.createElement(tag); if(cls)e.className=cls; if(text!=null)e.textContent=text; return e; }
+  function has(x){ if(x==null) return false; if(typeof x==="string") return x.trim()!==""; if(Array.isArray(x)) return x.length>0; return true; }
+  function emptyMsg(){ return el("div","empty","本单无此件"); }
+
+  document.title = "回顾页 · " + (D.meta.runId || "run");
+
+  /* ── 数据抽取备注横幅 ── */
+  (function(){
+    const list = $("#notes-list");
+    if(has(D.extractionNotes)){
+      $("#notes-summary").textContent = "数据抽取备注（" + D.extractionNotes.length + " 条：哪些字段缺失、哪些靠推断）";
+      D.extractionNotes.forEach(n=>{
+        const li = el("li");
+        li.appendChild(el("span","nf",(n.field||"") + "："));
+        li.appendChild(document.createTextNode(n.note||""));
+        list.appendChild(li);
+      });
+    }else{
+      $("#notes-summary").textContent = "数据抽取备注（无：全部字段均取自原文、无推断）";
+      list.appendChild(el("li",null,"无。"));
+    }
+  })();
+
+  const zones = $("#zones");
+  function makeZone(id, title, countText, open){
+    const d = el("details","zone"); d.id = id; if(open) d.setAttribute("open","");
+    const s = el("summary");
+    s.appendChild(el("span",null,title));
+    if(countText!=null){ s.appendChild(document.createTextNode(" ")); s.appendChild(el("span","count",countText)); }
+    d.appendChild(s);
+    const body = el("div","zone-body"); d.appendChild(body);
+    zones.appendChild(d);
+    return body;
+  }
+
+  /* ── ① 单头卡 ── */
+  (function(){
+    const body = makeZone("z1","① 单头卡",null,true);
+    body.appendChild(el("h1",null, has(D.meta.title) ? D.meta.title : (D.meta.runId || "（无标题：成稿缺失）")));
+    const grid = el("div","meta-grid");
+    function mi(k,v){ if(!has(v)) v="本单无此件"; const d=el("div","meta-item"); d.appendChild(el("span","k",k)); d.appendChild(document.createTextNode(v)); grid.appendChild(d); }
+    mi("run：", D.meta.runId);
+    mi("日期：", D.meta.date);
+    if(has(D.meta.panxing)) mi("判型：", D.meta.panxing);
+    if(has(D.meta.yongtu)) mi("用途类型：", D.meta.yongtu);
+    if(has(D.direction.duzhe)) mi("读者层级：", D.direction.duzhe);
+    mi("勾选率：", D.meta.gouxuanlv);
+    mi("执行引擎：", D.meta.engine);
+    body.appendChild(grid);
+
+    const dir = el("div","dir-block");
+    function row(k, build){
+      const r = el("div","dir-row"); r.appendChild(el("span","k",k));
+      build(r); dir.appendChild(r);
+    }
+    row("议题", r=>{ r.appendChild(el("p",null, has(D.direction.yiti)?D.direction.yiti:"本单无此件")); });
+    row("倾向箭头", r=>{
+      if(has(D.direction.jiantou)) D.direction.jiantou.forEach(j=>r.appendChild(el("span","chip",j)));
+      else r.appendChild(el("span",null,"本单无此件"));
+    });
+    row("禁区", r=>{
+      if(has(D.direction.jinqu)){ const ul=el("ul"); D.direction.jinqu.forEach(j=>ul.appendChild(el("li",null,j))); r.appendChild(ul); }
+      else r.appendChild(el("span",null,"本单无此件"));
+    });
+    if(has(D.direction.zhijue)) row("半成形直觉", r=>{ r.appendChild(el("p",null,D.direction.zhijue)); });
+    body.appendChild(dir);
+  })();
+
+  /* 观点索引（②③ 共用） */
+  const vpById = {}; D.viewpoints.forEach(v=>{ vpById[v.id]=v; });
+  const checkedVps = D.viewpoints.filter(v=>v.status!=="叉");
+  const secByVp = {}; D.sections.forEach(s=>{ (s.viewpointIds||[]).forEach(vid=>{ (secByVp[vid]=secByVp[vid]||[]).push(s.id); }); });
+
+  /* ── ② 主线链视图 ── */
+  (function(){
+    const body = makeZone("z2","② 主线链视图","节 ⇄ 已勾观点 ⇄ 证据料",true);
+    if(!has(D.sections) && !has(checkedVps)){ body.appendChild(emptyMsg()); return; }
+    body.appendChild(el("p","legend","点击任一列条目，另两列高亮其关联项；再次点击该条目或点击空白处取消高亮。关联数据来自观点的“证据摘要 F 锚”与“拟落槽位”。"));
+    const chain = el("div","chain");
+    const colS = el("div","chain-col"), colV = el("div","chain-col"), colM = el("div","chain-col");
+    colS.appendChild(el("h3",null,"成稿各节小标题")); colV.appendChild(el("h3",null,"已勾观点")); colM.appendChild(el("h3",null,"证据锚 · 料条目"));
+
+    // 右列：已勾观点引用到的料，按 F 编号排序
+    const usedF = {}; checkedVps.forEach(v=>{ (v.evidenceRefs||[]).forEach(f=>{ usedF[f]=true; }); });
+    const matById = {}; D.materials.forEach(m=>{ matById[m.id]=m; });
+    const fList = Object.keys(usedF).sort((a,b)=>{
+      const na=parseInt((a.match(/\d+/)||["0"])[0],10), nb=parseInt((b.match(/\d+/)||["0"])[0],10); return na-nb;
+    });
+
+    const items = {}; // key -> element
+    function reg(type,id,e){ items[type+":"+id]=e; }
+
+    D.sections.forEach(s=>{
+      const b = el("button","chain-item");
+      b.type="button";
+      b.appendChild(document.createTextNode(s.heading||s.id));
+      if(has(s.mainlineSeg)) b.appendChild(el("span","sub","主线段："+s.mainlineSeg));
+      if(!has(s.viewpointIds)) b.appendChild(el("span","sub","本节无对应观点"));
+      b.title = (s.heading||"");
+      b.dataset.type="s"; b.dataset.id=s.id;
+      colS.appendChild(b); reg("s",s.id,b);
+    });
+    checkedVps.forEach(v=>{
+      const b = el("button","chain-item");
+      b.type="button";
+      const short = (v.text||"").length>48 ? (v.text||"").slice(0,48)+"…" : (v.text||"");
+      b.appendChild(document.createTextNode((v.slot? "〔"+v.slot+"〕 " : "") + short));
+      b.title = v.text||"";
+      b.dataset.type="v"; b.dataset.id=v.id;
+      colV.appendChild(b); reg("v",v.id,b);
+    });
+    fList.forEach(f=>{
+      const m = matById[f];
+      const b = el("button","chain-item");
+      b.type="button";
+      const fid = el("span","fid",f); b.appendChild(fid);
+      const txt = m ? (m.summary.length>40 ? m.summary.slice(0,40)+"…" : m.summary) : "（料包中未找到该编号）";
+      b.appendChild(document.createTextNode(txt));
+      if(m && has(m.tier)) b.appendChild(el("span","sub","T级："+m.tier));
+      b.title = m ? (f+"｜"+m.summary) : f;
+      b.dataset.type="m"; b.dataset.id=f;
+      colM.appendChild(b); reg("m",f,b);
+    });
+
+    chain.appendChild(colS); chain.appendChild(colV); chain.appendChild(colM);
+    body.appendChild(chain);
+
+    /* 三级联动 */
+    let selected = null; // {type,id}
+    function related(type,id){
+      const s=new Set(), v=new Set(), m=new Set();
+      if(type==="s"){
+        s.add(id);
+        const sec = D.sections.find(x=>x.id===id);
+        ((sec&&sec.viewpointIds)||[]).forEach(vid=>{ v.add(vid); ((vpById[vid]||{}).evidenceRefs||[]).forEach(f=>m.add(f)); });
+      }else if(type==="v"){
+        v.add(id);
+        (secByVp[id]||[]).forEach(sid=>s.add(sid));
+        ((vpById[id]||{}).evidenceRefs||[]).forEach(f=>m.add(f));
+      }else{
+        m.add(id);
+        checkedVps.forEach(vp=>{ if((vp.evidenceRefs||[]).indexOf(id)>=0){ v.add(vp.id); (secByVp[vp.id]||[]).forEach(sid=>s.add(sid)); } });
+      }
+      return {s:s,v:v,m:m};
+    }
+    function clearHL(){
+      Object.keys(items).forEach(k=>{ items[k].classList.remove("active","linked","dim"); });
+      selected = null;
+    }
+    function applySel(type,id){
+      clearHL();
+      selected = {type:type,id:id};
+      const r = related(type,id);
+      Object.keys(items).forEach(k=>{
+        const e = items[k];
+        const t = e.dataset.type, i = e.dataset.id;
+        if(t===type && i===id){ e.classList.add("active"); return; }
+        const set = r[t];
+        if(set && set.has(i)) e.classList.add("linked");
+        else e.classList.add("dim");
+      });
+    }
+    chain.addEventListener("click", ev=>{
+      const b = ev.target.closest(".chain-item");
+      if(!b){ clearHL(); return; }
+      ev.stopPropagation();
+      const t=b.dataset.type, i=b.dataset.id;
+      if(selected && selected.type===t && selected.id===i){ clearHL(); return; }
+      applySel(t,i);
+    });
+    document.addEventListener("keydown", ev=>{ if(ev.key==="Escape") clearHL(); });
+  })();
+
+  /* ── ③ 观点清单区 ── */
+  (function(){
+    const cnt = {};
+    D.viewpoints.forEach(v=>{ cnt[v.status]=(cnt[v.status]||0)+1; });
+    const countText = has(D.viewpoints)
+      ? "共 "+D.viewpoints.length+" 条（勾 "+(cnt["勾"]||0)+"｜叉 "+(cnt["叉"]||0)+"｜改 "+(cnt["改"]||0)+"）"
+      : null;
+    const body = makeZone("z3","③ 观点清单区",countText,true);
+    if(!has(D.viewpoints)){ body.appendChild(emptyMsg()); return; }
+    if(has(D.selectionNote)) body.appendChild(el("div","src-note",D.selectionNote));
+    const stBadge = {"勾":"badge st-gou","叉":"badge st-cha","改":"badge st-gai"};
+    D.viewpoints.forEach(v=>{
+      const card = el("div","vp"+(v.status==="叉"?" rejected":""));
+      const head = el("div","vp-head");
+      head.appendChild(el("span","vid",v.id.replace(/^v/,"观点")||v.id));
+      if(has(v.slot)) head.appendChild(el("span","badge slot","〔"+v.slot+"〕"));
+      head.appendChild(el("span",stBadge[v.status]||"badge", v.status||"未标"));
+      if(has(v.confidence)) head.appendChild(el("span","badge","置信度："+v.confidence));
+      card.appendChild(head);
+      if(v.status==="改"){
+        const panels = el("div","rev-panels");
+        const p1 = el("div"); p1.appendChild(el("span","k","原句")); p1.appendChild(document.createTextNode(v.text||""));
+        const p2 = el("div"); p2.appendChild(el("span","k","改后")); p2.appendChild(document.createTextNode(v.revisedText||""));
+        panels.appendChild(p1); panels.appendChild(p2); card.appendChild(panels);
+      }else{
+        card.appendChild(el("p","text",v.text||""));
+      }
+      function row(k,val,build){
+        if(!has(val)) return;
+        const r = el("div","row"); r.appendChild(el("span","k",k));
+        if(build) build(r); else r.appendChild(document.createTextNode(val));
+        card.appendChild(r);
+      }
+      row("勾选备注：", v.reason);
+      row("证据锚：", v.evidenceRefs, r=>{ v.evidenceRefs.forEach(f=>r.appendChild(el("span","fchip",f))); });
+      row("拍板对应：", v.decisionFor);
+      body.appendChild(card);
+    });
+  })();
+
+  /* ── ④ 料包区 ── */
+  (function(){
+    const countText = (has(D.materials)||has(D.scraps))
+      ? "材料 "+D.materials.length+" 条｜边角料 "+D.scraps.length+" 条" : null;
+    const body = makeZone("z4","④ 料包区",countText,true);
+    if(!has(D.materials) && !has(D.scraps)){ body.appendChild(emptyMsg()); return; }
+    if(has(D.materialsNote)) body.appendChild(el("div","src-note",D.materialsNote));
+
+    if(has(D.materials)){
+      const catOrder = [], catMap = {};
+      D.materials.forEach(m=>{
+        const c = has(m.category)?m.category:"（未分类）";
+        if(!catMap[c]){ catMap[c]=[]; catOrder.push(c); }
+        catMap[c].push(m);
+      });
+      catOrder.forEach(c=>{
+        const block = el("div","cat-block");
+        block.appendChild(el("h3",null,c));
+        catMap[c].forEach(m=>{
+          const card = el("div","mat");
+          const h = el("div","mhead");
+          h.appendChild(el("span","fid",m.id));
+          if(has(m.tier)) h.appendChild(el("span","badge",m.tier));
+          card.appendChild(h);
+          card.appendChild(el("p","summary",m.summary||""));
+          if(has(m.source)) card.appendChild(el("p","meta-line","来源："+m.source));
+          if(has(m.url)) card.appendChild(el("p","meta-line mono",m.url));
+          block.appendChild(card);
+        });
+        body.appendChild(block);
+      });
+    }else{
+      body.appendChild(emptyMsg());
+    }
+
+    body.appendChild(el("h3",null,"边角料箱（正文未用、可捞回）"));
+    if(has(D.scraps)){
+      D.scraps.forEach((s,i)=>{
+        const card = el("div","scrap");
+        card.appendChild(el("p",null,(i+1)+". "+(s.text||"")));
+        if(has(s.whyUnused)) card.appendChild(el("p","why","为什么没用 / 可在哪用："+s.whyUnused));
+        if(has(s.source)) card.appendChild(el("p","src mono",s.source));
+        body.appendChild(card);
+      });
+    }else{
+      body.appendChild(emptyMsg());
+    }
+  })();
+
+  /* ── ⑤ 闸门区（默认折叠） ── */
+  (function(){
+    const body = makeZone("z5","⑤ 闸门区","闸门报告＋预检单",false);
+    if(!has(D.gates) && !has(D.precheck.files)){ body.appendChild(emptyMsg()); return; }
+    if(has(D.gates)){
+      D.gates.forEach(g=>{
+        const block = el("div","gate");
+        block.appendChild(el("h3",null,g.name||"（未命名闸）"));
+        if(has(g.violations)) g.violations.forEach(v=>block.appendChild(el("div","vio",v)));
+        else block.appendChild(el("div","empty","本闸无违例"));
+        body.appendChild(block);
+      });
+    }else{
+      body.appendChild(emptyMsg());
+    }
+    body.appendChild(el("h3",null,"预检单读数（原文照录）"));
+    if(has(D.precheck.files)){
+      D.precheck.files.forEach(f=>{
+        body.appendChild(el("h3",null,f.name||"预检单"));
+        const pre = el("pre","raw"); pre.textContent = f.raw||"";
+        body.appendChild(pre);
+      });
+    }else{
+      body.appendChild(emptyMsg());
+    }
+  })();
+
+  /* ── ⑥ 预读提词区（默认折叠） ── */
+  (function(){
+    const body = makeZone("z6","⑥ 预读提词区","顾问考题＋三翻模拟＋需作者定夺",false);
+    if(!has(D.preread) && !has(D.decisions)){ body.appendChild(emptyMsg()); return; }
+    if(has(D.preread)){
+      D.preread.forEach(g=>{
+        const block = el("div","voice-block");
+        if(has(g.voice)) block.appendChild(el("h3",null,g.voice));
+        if(has(g.questions)){
+          const ol = el("ol");
+          g.questions.forEach(q=>ol.appendChild(el("li",null,q)));
+          block.appendChild(ol);
+        }
+        if(has(g.sanfan)){
+          block.appendChild(el("h3",null,"三翻模拟（原文照录）"));
+          block.appendChild(el("div","sanfan",g.sanfan));
+        }
+        body.appendChild(block);
+      });
+    }else{
+      body.appendChild(emptyMsg());
+    }
+    body.appendChild(el("h3",null,"需作者定夺清单"));
+    if(has(D.decisions)){
+      const ol = el("ol");
+      D.decisions.forEach(d=>ol.appendChild(el("li",null,d)));
+      body.appendChild(ol);
+    }else{
+      body.appendChild(emptyMsg());
+    }
+  })();
+})();
+</script>
+</body>
+</html>
