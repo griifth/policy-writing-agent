@@ -16,7 +16,7 @@ pip install -r requirements.txt
 
 # 3. 在装有本包 skills 的 Claude Code / agent 会话中，对装配工说：
 #    「派单：<你的主题>」——派单员（order-dispatch）会问清决策模式等五个变量，
-#    生成本单《接单提示词》（任务简报）落 orders/ 并派发执行 agent；
+#    生成本单《接单提示词》（任务简报）落 orders/，随后接单会话本人转为装配工开跑（不转派）；
 #    手里有现成资料就顺手一并给，机器自动编目为 U 类锚并默认高优先使用
 ```
 
