@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>runs 回顾总览</title>
+<style>
+  :root{
+    --ink:#1f2530; --ink2:#5f6b7a; --line:#d9dde3; --card:#ffffff; --bg:#eceef2;
+    --accent:#0f62fe; --accent-soft:#e3ecff; --mark:#fff4db; --mark-line:#e0a92f;
+    --grey:#9aa5b1;
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{
+    margin:0; padding:20px 16px 60px; background:var(--bg); color:var(--ink);
+    font:14px/1.7 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif;
+  }
+  .wrap{max-width:1080px; margin:0 auto;}
+  h1{font-size:20px; line-height:1.5; margin:0 0 6px; font-weight:700;}
+  .stats{font-size:14px; color:var(--ink2); margin:0 0 14px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+  code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px;}
+
+  /* 数据抽取备注横幅 */
+  #notes-banner{
+    background:var(--mark); border:1px solid var(--mark-line); border-radius:8px;
+    padding:6px 12px; margin-bottom:14px;
+  }
+  #notes-banner summary{cursor:pointer; font-size:14px; font-weight:600;}
+  #notes-banner ul{margin:6px 0 4px;}
+  #notes-banner li{font-size:14px;}
+  #notes-banner .nf{font-weight:600;}
+
+  /* run 卡片 */
+  .run-card{
+    display:block; background:var(--card); border:1px solid var(--line); border-left:4px solid var(--accent);
+    border-radius:8px; margin:12px 0; padding:12px 14px 14px; box-shadow:0 1px 3px rgba(20,30,50,.06);
+    color:inherit; text-decoration:none;
+  }
+  a.run-card:hover{border-color:var(--accent); box-shadow:0 2px 8px rgba(20,30,50,.12);}
+  .run-card h2{font-size:15px; margin:0 0 8px; line-height:1.5;}
+  .run-card h2 .rid{color:var(--ink2); font-weight:400; font-size:12px; font-family:ui-monospace,Menlo,monospace; margin-left:8px;}
+  .meta-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:8px 16px; margin:4px 0;}
+  .meta-item{font-size:14px; background:#f6f7f9; border-radius:6px; padding:6px 10px;}
+  .meta-item .k{display:block; color:var(--ink2); font-size:11px; font-family:ui-monospace,Menlo,monospace; margin-bottom:1px;}
+  .deliv-row{margin-top:8px; border-top:1px dashed var(--line); padding-top:8px; font-size:14px;}
+  .deliv-row .k{color:var(--ink2); font-size:11px; font-family:ui-monospace,Menlo,monospace; margin-right:6px;}
+  .chip{
+    display:inline-block; background:#eef0f3; color:var(--ink2);
+    border-radius:4px; padding:1px 8px; margin:2px 4px 2px 0; font-size:13px;
+  }
+  .card-foot{display:flex; justify-content:flex-end; margin-top:8px;}
+  .badge{
+    display:inline-block; border-radius:4px; padding:0 7px; font-size:12px; line-height:1.8;
+    background:#eef0f3; color:var(--ink2); border:1px solid var(--line); font-family:ui-monospace,Menlo,monospace;
+  }
+
+  footer.page-foot{
+    margin-top:20px; padding:10px 14px; text-align:center; font-size:13px; color:var(--ink2);
+    border-top:1px solid var(--line); font-family:ui-monospace,Menlo,monospace;
+  }
+
+  @media print{
+    body{background:#fff; padding:0;}
+    .run-card{break-inside:avoid; box-shadow:none;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>runs 回顾总览</h1>
+  <p class="stats" id="stats"></p>
+  <details id="notes-banner"><summary id="notes-summary">数据抽取备注</summary><ul id="notes-list"></ul></details>
+  <main id="cards"></main>
+  <footer class="page-foot">本页内容全部抽取自各 run 内文件原文；历史单中的称谓为当时实况。总览生成时间以文件修改时间为准。</footer>
+</div>
+
+<script>
+"use strict";
+const OVERVIEW_DATA = /*__OVERVIEW_DATA__*/;
+
+(function(){
+  const D = Object.assign({ runs:[], extractionNotes:[] }, OVERVIEW_DATA || {});
+  if(!Array.isArray(D.runs)) D.runs = [];
+  if(!Array.isArray(D.extractionNotes)) D.extractionNotes = [];
+
+  const $ = s => document.querySelector(s);
+  function el(tag, cls, text){ const e=document.createElement(tag); if(cls)e.className=cls; if(text!=null)e.textContent=text; return e; }
+  function has(x){ if(x==null) return false; if(typeof x==="string") return x.trim()!==""; if(Array.isArray(x)) return x.length>0; return true; }
+
+  /* ── 顶部统计（纯计数事实） ── */
+  (function(){
+    const total = D.runs.length;
+    const withPage = D.runs.filter(r=>has(r.reviewPage)).length;
+    $("#stats").textContent = "共 " + total + " 单（新单在上）｜回顾页：已生成 " + withPage + " 单／未生成 " + (total-withPage) + " 单";
+  })();
+
+  /* ── 数据抽取备注横幅 ── */
+  (function(){
+    const list = $("#notes-list");
+    if(has(D.extractionNotes)){
+      $("#notes-summary").textContent = "数据抽取备注（" + D.extractionNotes.length + " 条：哪些字段缺失、哪些靠推断）";
+      D.extractionNotes.forEach(n=>{
+        const li = el("li");
+        li.appendChild(el("span","nf",(n.field||"") + "："));
+        li.appendChild(document.createTextNode(n.note||""));
+        list.appendChild(li);
+      });
+    }else{
+      $("#notes-summary").textContent = "数据抽取备注（无：全部字段均取自原文、无推断）";
+      list.appendChild(el("li",null,"无。"));
+    }
+  })();
+
+  /* ── run 卡片列表（数据已按新单在上排好） ── */
+  (function(){
+    const box = $("#cards");
+    D.runs.forEach(r=>{
+      // 有回顾页：整卡为相对路径链接；无：普通 div
+      const card = el(has(r.reviewPage) ? "a" : "div", "run-card");
+      if(has(r.reviewPage)) card.setAttribute("href", r.reviewPage);
+
+      const h2 = el("h2", null, has(r.title) ? r.title : (r.runId || "（无 run-id）"));
+      h2.appendChild(el("span","rid", r.runId||""));
+      card.appendChild(h2);
+
+      const grid = el("div","meta-grid");
+      function mi(k,v){ if(!has(v)) v="本单无此件"; const d=el("div","meta-item"); d.appendChild(el("span","k",k)); d.appendChild(document.createTextNode(v)); grid.appendChild(d); }
+      mi("日期：", r.date);
+      mi((has(r.panxing) ? (r.panxingLabel||"判型") : "判型/用途类型") + "：", r.panxing);
+      mi("勾选率：", r.gouxuanlv);
+      mi("执行引擎：", r.engine);
+      card.appendChild(grid);
+
+      const deliv = el("div","deliv-row");
+      deliv.appendChild(el("span","k","在场产物"));
+      if(has(r.deliverables)){
+        r.deliverables.forEach(d=>deliv.appendChild(el("span","chip",d)));
+      }else{
+        deliv.appendChild(el("span",null,"无（三件交付件均不在场）"));
+      }
+      card.appendChild(deliv);
+
+      const foot = el("div","card-foot");
+      foot.appendChild(el("span","badge", has(r.reviewPage) ? "回顾页：有（点击卡片打开）" : "回顾页：未生成"));
+      card.appendChild(foot);
+
+      box.appendChild(card);
+    });
+  })();
+})();
+</script>
+</body>
+</html>
