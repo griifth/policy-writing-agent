@@ -118,11 +118,11 @@ class DeepSeekConfig:
 
     api_key: str
     base_url: str = "https://api.deepseek.com"
-    model: str = "deepseek-chat"
-    timeout_seconds: int = 120
-    max_tokens: int | None = None
-    reasoning_effort: str | None = None
-    thinking_enabled: bool | None = None
+    model: str = "deepseek-v4-pro"
+    timeout_seconds: int = 600
+    max_tokens: int | None = 12000
+    reasoning_effort: str | None = "max"
+    thinking_enabled: bool | None = True
 
 
 def load_deepseek_config(env_path: str | Path = DEFAULT_ENV_PATH) -> DeepSeekConfig:
@@ -142,20 +142,24 @@ def load_deepseek_config(env_path: str | Path = DEFAULT_ENV_PATH) -> DeepSeekCon
         raise DeepSeekConfigError("缺少 DEEPSEEK_API_KEY")
 
     base_url = _get_env_value("DEEPSEEK_BASE_URL", env_values) or "https://api.deepseek.com"
-    model = _get_env_value("DEEPSEEK_MODEL", env_values) or "deepseek-chat"
+    model = _get_env_value("DEEPSEEK_MODEL", env_values) or "deepseek-v4-pro"
     timeout_seconds = _parse_int(
         _get_env_value("DEEPSEEK_TIMEOUT_SECONDS", env_values),
         "DEEPSEEK_TIMEOUT_SECONDS",
-    ) or 120
+    ) or 600
     max_tokens = _parse_int(
         _get_env_value("DEEPSEEK_MAX_TOKENS", env_values),
         "DEEPSEEK_MAX_TOKENS",
     )
+    if max_tokens is None:
+        max_tokens = 12000
     reasoning_effort = _get_env_value("DEEPSEEK_REASONING_EFFORT", env_values) or "max"
     thinking_enabled = _parse_bool(
         _get_env_value("DEEPSEEK_THINKING_ENABLED", env_values),
         "DEEPSEEK_THINKING_ENABLED",
     )
+    if thinking_enabled is None:
+        thinking_enabled = True
 
     return DeepSeekConfig(
         api_key=api_key,
