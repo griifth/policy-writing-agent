@@ -6,62 +6,135 @@
 <title>runs 回顾总览</title>
 <style>
   :root{
-    --ink:#1f2530; --ink2:#5f6b7a; --line:#d9dde3; --card:#ffffff; --bg:#eceef2;
-    --accent:#0f62fe; --accent-soft:#e3ecff; --mark:#fff4db; --mark-line:#e0a92f;
-    --grey:#9aa5b1;
+    interpolate-size: allow-keywords;
+    --bg:#f5f5f7; --card:#ffffff; --panel:#f5f5f7; --panel2:#fafafc;
+    --ink:#1d1d1f; --ink2:#6e6e73; --line:#d8d8de; --line-soft:#e8e8ed;
+    --accent:#0071e3; --accent-soft:rgba(0,113,227,.1);
+    --mark:#fff7e0; --mark-line:#e0a92f; --mark-ink:#8a6414;
+    --chip:#eef0f3; --chip-ink:#5f6b7a;
+    --glass:rgba(255,255,255,.78); --glass-bg:rgba(245,245,247,.8);
+    --shadow-hover:0 4px 16px rgba(0,0,0,.08);
+    --ease:cubic-bezier(.25,.1,.25,1);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#000000; --card:#161617; --panel:#1d1d1f; --panel2:#1c1c1e;
+      --ink:#f5f5f7; --ink2:#a1a1a6; --line:#3a3a3c; --line-soft:#2c2c2e;
+      --accent:#2997ff; --accent-soft:rgba(41,151,255,.16);
+      --mark:rgba(224,169,47,.16); --mark-line:#a97e1f; --mark-ink:#f5c04e;
+      --chip:#2c2c2e; --chip-ink:#a1a1a6;
+      --glass:rgba(22,22,23,.82); --glass-bg:rgba(0,0,0,.82);
+      --shadow-hover:0 4px 16px rgba(0,0,0,.5);
+    }
   }
   *{box-sizing:border-box;}
   html{-webkit-text-size-adjust:100%;}
   body{
-    margin:0; padding:20px 16px 60px; background:var(--bg); color:var(--ink);
-    font:14px/1.7 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif;
+    margin:0; padding:28px 20px 80px; background:var(--bg); color:var(--ink);
+    font:15px/1.65 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
   }
   .wrap{max-width:1080px; margin:0 auto;}
-  h1{font-size:20px; line-height:1.5; margin:0 0 6px; font-weight:700;}
-  .stats{font-size:14px; color:var(--ink2); margin:0 0 14px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
-  code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px;}
+  h1{font-size:34px; line-height:1.3; margin:0 0 10px; font-weight:700; letter-spacing:-.01em;}
+  .stats{
+    font-size:15px; color:var(--ink2); margin:0; padding:10px 4px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-variant-numeric:tabular-nums;
+    position:sticky; top:0; z-index:10;
+    background:var(--glass-bg);
+    -webkit-backdrop-filter:blur(20px) saturate(1.5); backdrop-filter:blur(20px) saturate(1.5);
+  }
+  code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:13px;}
+  a,summary,button{transition:opacity .2s var(--ease), transform .2s var(--ease);}
+  a:focus-visible, summary:focus-visible, button:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:4px;}
+
+  /* 进入视口淡入（JS 控制；无 JS/reduced-motion 时不加 .io-pre，直接呈现） */
+  .io-pre{opacity:0; transform:translateY(12px);}
+  .io-pre.io-in{opacity:1; transform:translateY(0); transition:opacity .4s var(--ease), transform .4s var(--ease);}
+
+  /* 实时连接条 */
+  #live-bar{
+    display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+    padding:4px 4px 10px; margin-bottom:10px; font-size:13px; color:var(--ink2);
+    position:sticky; top:37px; z-index:9;
+    background:var(--glass-bg);
+    -webkit-backdrop-filter:blur(20px) saturate(1.5); backdrop-filter:blur(20px) saturate(1.5);
+  }
+  #live-btn{
+    cursor:pointer; font:inherit; font-size:13px; color:var(--accent);
+    background:var(--accent-soft); border:1px solid transparent; border-radius:6px; padding:2px 12px;
+  }
+  #live-btn:hover{transform:translateY(-1px);}
+  #live-btn[hidden]{display:none;}
+  #live-time{font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums;}
 
   /* 数据抽取备注横幅 */
   #notes-banner{
-    background:var(--mark); border:1px solid var(--mark-line); border-radius:8px;
-    padding:6px 12px; margin-bottom:14px;
+    background:var(--mark); border:1px solid var(--mark-line); border-radius:12px;
+    padding:10px 18px; margin-bottom:20px;
   }
-  #notes-banner summary{cursor:pointer; font-size:14px; font-weight:600;}
-  #notes-banner ul{margin:6px 0 4px;}
-  #notes-banner li{font-size:14px;}
+  #notes-banner summary{cursor:pointer; font-size:15px; font-weight:600;}
+  #notes-banner ul{margin:8px 0 6px;}
+  #notes-banner li{font-size:15px;}
   #notes-banner .nf{font-weight:600;}
+  #notes-banner::details-content{
+    height:0; overflow:clip;
+    transition:height .3s var(--ease), content-visibility .3s allow-discrete;
+  }
+  #notes-banner[open]::details-content{height:auto;}
 
   /* run 卡片 */
   .run-card{
     display:block; background:var(--card); border:1px solid var(--line); border-left:4px solid var(--accent);
-    border-radius:8px; margin:12px 0; padding:12px 14px 14px; box-shadow:0 1px 3px rgba(20,30,50,.06);
+    border-radius:12px; margin:18px 0; padding:18px 20px 20px;
     color:inherit; text-decoration:none;
+    transition:opacity .2s var(--ease), transform .2s var(--ease);
+    content-visibility:auto; contain-intrinsic-size:auto 240px;
   }
-  a.run-card:hover{border-color:var(--accent); box-shadow:0 2px 8px rgba(20,30,50,.12);}
-  .run-card h2{font-size:15px; margin:0 0 8px; line-height:1.5;}
-  .run-card h2 .rid{color:var(--ink2); font-weight:400; font-size:12px; font-family:ui-monospace,Menlo,monospace; margin-left:8px;}
-  .meta-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:8px 16px; margin:4px 0;}
-  .meta-item{font-size:14px; background:#f6f7f9; border-radius:6px; padding:6px 10px;}
-  .meta-item .k{display:block; color:var(--ink2); font-size:11px; font-family:ui-monospace,Menlo,monospace; margin-bottom:1px;}
-  .deliv-row{margin-top:8px; border-top:1px dashed var(--line); padding-top:8px; font-size:14px;}
-  .deliv-row .k{color:var(--ink2); font-size:11px; font-family:ui-monospace,Menlo,monospace; margin-right:6px;}
+  a.run-card:hover{transform:translateY(-2px); box-shadow:var(--shadow-hover); border-color:var(--accent);}
+  .run-card h2{font-size:20px; font-weight:600; margin:0 0 12px; line-height:1.4;}
+  .run-card h2 .rid{color:var(--ink2); font-weight:400; font-size:13px; font-family:ui-monospace,Menlo,monospace; margin-left:8px;}
+  .meta-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px 20px; margin:6px 0;}
+  .meta-item{font-size:15px; background:var(--panel); border-radius:8px; padding:10px 14px; font-variant-numeric:tabular-nums;}
+  .meta-item .k{display:block; color:var(--ink2); font-size:13px; font-family:ui-monospace,Menlo,monospace; margin-bottom:2px;}
+  .deliv-row{margin-top:12px; border-top:1px dashed var(--line); padding-top:12px; font-size:15px;}
+  .deliv-row .k{color:var(--ink2); font-size:13px; font-family:ui-monospace,Menlo,monospace; margin-right:6px;}
   .chip{
-    display:inline-block; background:#eef0f3; color:var(--ink2);
-    border-radius:4px; padding:1px 8px; margin:2px 4px 2px 0; font-size:13px;
+    display:inline-block; background:var(--chip); color:var(--chip-ink);
+    border-radius:6px; padding:2px 10px; margin:3px 6px 3px 0; font-size:13px;
   }
-  .card-foot{display:flex; justify-content:flex-end; margin-top:8px;}
+  .card-foot{display:flex; justify-content:flex-end; margin-top:12px;}
   .badge{
-    display:inline-block; border-radius:4px; padding:0 7px; font-size:12px; line-height:1.8;
-    background:#eef0f3; color:var(--ink2); border:1px solid var(--line); font-family:ui-monospace,Menlo,monospace;
+    display:inline-block; border-radius:6px; padding:1px 9px; font-size:13px; line-height:1.7;
+    background:var(--chip); color:var(--chip-ink); border:1px solid var(--line-soft);
+    font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums;
   }
+  .badge.src{background:var(--accent-soft); color:var(--accent); border-color:transparent;}
 
   footer.page-foot{
-    margin-top:20px; padding:10px 14px; text-align:center; font-size:13px; color:var(--ink2);
-    border-top:1px solid var(--line); font-family:ui-monospace,Menlo,monospace;
+    margin-top:28px; padding:14px 18px; text-align:center; font-size:13px; color:var(--ink2);
+    border-top:1px solid var(--line-soft); font-family:ui-monospace,Menlo,monospace;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{transition:none !important; animation:none !important;}
+    .io-pre{opacity:1 !important; transform:none !important;}
+    #notes-banner::details-content{transition:none !important;}
   }
 
   @media print{
+    :root{
+      --bg:#ffffff; --card:#ffffff; --panel:#f6f7f9; --panel2:#fafbfc;
+      --ink:#1d1d1f; --ink2:#5f6b7a; --line:#d9dde3; --line-soft:#e5e7eb;
+      --accent:#0071e3; --accent-soft:#e3ecff;
+      --mark:#fff7e0; --mark-line:#e0a92f; --mark-ink:#8a6414;
+      --chip:#eef0f3; --chip-ink:#5f6b7a;
+    }
     body{background:#fff; padding:0;}
+    *,*::before,*::after{transition:none !important; animation:none !important;}
+    .io-pre{opacity:1 !important; transform:none !important;}
+    .stats, #live-bar{position:static; background:transparent; -webkit-backdrop-filter:none; backdrop-filter:none;}
+    #live-btn{display:none;}
+    #notes-banner::details-content{height:auto !important;}
+    #notes-banner > *:not(summary){display:block !important;}
     .run-card{break-inside:avoid; box-shadow:none;}
   }
 </style>
@@ -70,34 +143,167 @@
 <div class="wrap">
   <h1>runs 回顾总览</h1>
   <p class="stats" id="stats"></p>
+  <div id="live-bar">
+    <span class="badge src" id="src-badge">静态快照</span>
+    <span id="live-hint">数据来自生成时内嵌快照；Chrome/Edge 可直连 runs/ 目录看实时数据。</span>
+    <button id="live-btn" type="button" hidden></button>
+    <span id="live-time"></span>
+  </div>
   <details id="notes-banner"><summary id="notes-summary">数据抽取备注</summary><ul id="notes-list"></ul></details>
   <main id="cards"></main>
-  <footer class="page-foot">本页内容全部抽取自各 run 内文件原文；历史单中的称谓为当时实况。总览生成时间以文件修改时间为准。</footer>
+  <footer class="page-foot">本页内容全部抽取自各 run 内文件原文；历史单中的称谓为当时实况。总览生成时间以文件修改时间为准；实时模式以页面所示读取时间为准。</footer>
 </div>
 
 <script>
 "use strict";
 const OVERVIEW_DATA = /*__OVERVIEW_DATA__*/;
 
+/*__LIVE_EXTRACTOR_START__*/
+/* 实时抽取器（§六 轻量摘要字段的 JS 端口；纯逻辑、无 DOM、无浏览器 API，
+   io 接口注入：{listRuns(), readText(runId, rel), exists(runId, rel)}，浏览器传 FS API 实现，测试传 node fs 实现） */
+function _stripMd(s){
+  return (s||"").replace(/[`*]/g,"").replace(/<br\s*\/?>/gi,"；").replace(/\s+/g," ").trim();
+}
+function _cells(row){
+  // 拆 markdown 表格行 → 单元格数组（去首尾空）
+  const c = row.replace(/^\s*\|/,"").replace(/\|\s*$/,"").split("|").map(_stripMd);
+  return c;
+}
+function _isSepRow(row){ return /^\s*\|[\s:|-]+\|\s*$/.test(row); }
+function parseLedger(md){
+  // 兼容行式表（| run_id | 判型 | 执行引擎 | 勾选率 |）与键值表（| 字段 | 值 |），按表头/键名对位取格
+  const out = {panxing:"", qiefa:"", yongtu:"", gouxuanlv:"", engine:""};
+  const lines = md.split("\n").filter(l=>/^\s*\|/.test(l));
+  for(let i=0;i<lines.length;i++){
+    if(_isSepRow(lines[i])) continue;
+    const h = _cells(lines[i]);
+    if(h.length>=2 && /^(字段|键)$/.test(h[0]) && /^(值|内容)$/.test(h[1])){
+      // 键值表：逐行取键
+      for(let j=i+1;j<lines.length;j++){
+        if(_isSepRow(lines[j])) continue;
+        const c = _cells(lines[j]);
+        if(c.length<2) continue;
+        const k = c[0], v = c[1];
+        if(!out.panxing && /^判型/.test(k)) out.panxing = v;
+        if(!out.yongtu && /^用途类型/.test(k)) out.yongtu = v;
+        if(!out.gouxuanlv && /勾选率|确认率|采纳率/.test(k)) out.gouxuanlv = v;
+        if(!out.engine && /^执行引擎/.test(k)) out.engine = v;
+      }
+      break;
+    }
+    if(h.some(c=>/run[_ ]?id/i.test(c))){
+      // 行式表：表头对位下一数据行
+      let data = null;
+      for(let j=i+1;j<lines.length;j++){ if(_isSepRow(lines[j])) continue; data = _cells(lines[j]); break; }
+      if(data){
+        h.forEach((col,idx)=>{
+          const v = data[idx]||"";
+          if(!out.panxing && /^判型/.test(col)) out.panxing = v;
+          if(!out.qiefa && /^切法/.test(col)) out.qiefa = v;
+          if(!out.yongtu && /^用途类型/.test(col)) out.yongtu = v;
+          if(!out.gouxuanlv && /勾选率|确认率|采纳率/.test(col)) out.gouxuanlv = v;
+          if(!out.engine && /^执行引擎/.test(col)) out.engine = v;
+        });
+      }
+      break;
+    }
+  }
+  // 切法列独立存在时，取“切法X”并入判型
+  if(out.panxing && out.qiefa){
+    const m = out.qiefa.match(/切法[A-C]/);
+    if(m && out.panxing.indexOf(m[0])<0) out.panxing += "（" + m[0] + "）";
+  }
+  return out;
+}
+function parseDirectionType(md){
+  // 方向书第四节：问题判型（v2）或 用途类型（v1）的第一个 - [x] 勾选行
+  const sec = md.match(/##\s*四、(问题判型|用途类型)[\s\S]*?(?=\n##\s|$)/);
+  if(!sec) return null;
+  const label = sec[1] === "问题判型" ? "判型" : "用途类型";
+  const line = sec[0].match(/^\s*-\s*\[x\]\s*(.+)$/mi);
+  if(!line) return null;
+  let v = _stripMd(line[1]);
+  v = v.split("——")[0].trim();           // 去“——”后的说明
+  v = v.replace(/\s*\[AGENT-WRITER[^\]]*\]\s*/g,"").trim(); // 去代理决策标注
+  if(/低置信度图纸/.test(sec[0]) && v.indexOf("低置信度图纸")<0) v += "（低置信度图纸）"; // 节内标注一并带上
+  return {label:label, value:v};
+}
+async function liveExtractAll(io){
+  const names = await io.listRuns();
+  const runIds = names.filter(n=>/^\d{4}-\d{2}-\d{2}-/.test(n)).sort().reverse();
+  const runs = [], notes = [];
+  for(const runId of runIds){
+    const r = {runId:runId, date:runId.slice(0,10), title:"", panxingLabel:"判型", panxing:"",
+               gouxuanlv:"", engine:"", deliverables:[], reviewPage:null, runNotes:[]};
+    // 标题：最靠后交付版成稿的 H1
+    for(const f of ["outputs/聚拢版_初稿可阅读.md","outputs/初稿_可阅读.md","outputs/成稿.md"]){
+      const t = await io.readText(runId, f);
+      if(t!=null){
+        const m = t.match(/^#\s+(.+)$/m);
+        if(m) r.title = _stripMd(m[1]);
+        break;
+      }
+    }
+    if(!r.title) r.runNotes.push("成稿缺失：标题留空，卡片回退显示 run-id");
+    // 在场交付件（只列在场，不换算完成度）
+    for(const f of ["outputs/初稿_可交付.docx","outputs/聚拢版_初稿可阅读.md","outputs/成稿.md"]){
+      if(await io.exists(runId, f)) r.deliverables.push(f.split("/")[1]);
+    }
+    if(r.deliverables.length===0) r.runNotes.push("三件交付件均不在场");
+    // 回顾页在场探测
+    if(await io.exists(runId, "outputs/回顾页.html")) r.reviewPage = runId + "/outputs/回顾页.html";
+    // 台账：判型/用途类型/勾选率/执行引擎
+    const ledger = await io.readText(runId, "ledger_row.md");
+    if(ledger!=null){
+      const kv = parseLedger(ledger);
+      if(kv.panxing){ r.panxing = kv.panxing; r.panxingLabel = "判型"; }
+      else if(kv.yongtu){ r.panxing = kv.yongtu; r.panxingLabel = "用途类型"; }
+      r.gouxuanlv = kv.gouxuanlv;
+      r.engine = kv.engine;
+      // 勾选率为代理预演单的过程指标：台账含代理预演声明而单元格未带时，按红线 1 补上标注
+      if(r.gouxuanlv && !/代理预演/.test(r.gouxuanlv) && /代理预演/.test(ledger)){
+        r.gouxuanlv += "（代理预演·非质量背书）";
+      }
+      if(!kv.engine) r.runNotes.push("台账无执行引擎栏：engine 留空");
+    }else{
+      r.runNotes.push("台账缺失：勾选率/执行引擎留空");
+    }
+    // 方向书补判型/用途类型（台账无此栏时）
+    if(!r.panxing){
+      const dir = await io.readText(runId, "方向书.md");
+      if(dir!=null){
+        const px = parseDirectionType(dir);
+        if(px){ r.panxing = px.value; r.panxingLabel = px.label; }
+        else r.runNotes.push("方向书判型/用途类型栏未解析出勾选行");
+      }else{
+        r.runNotes.push("方向书缺失：判型/用途类型留空");
+      }
+    }
+    r.runNotes.forEach(n=>notes.push({field:runId, note:n}));
+    runs.push(r);
+  }
+  return {runs:runs, extractionNotes:notes};
+}
+/*__LIVE_EXTRACTOR_END__*/
+
 (function(){
-  const D = Object.assign({ runs:[], extractionNotes:[] }, OVERVIEW_DATA || {});
-  if(!Array.isArray(D.runs)) D.runs = [];
-  if(!Array.isArray(D.extractionNotes)) D.extractionNotes = [];
+  const D0 = Object.assign({ runs:[], extractionNotes:[] }, OVERVIEW_DATA || {});
+  if(!Array.isArray(D0.runs)) D0.runs = [];
+  if(!Array.isArray(D0.extractionNotes)) D0.extractionNotes = [];
 
   const $ = s => document.querySelector(s);
   function el(tag, cls, text){ const e=document.createElement(tag); if(cls)e.className=cls; if(text!=null)e.textContent=text; return e; }
   function has(x){ if(x==null) return false; if(typeof x==="string") return x.trim()!==""; if(Array.isArray(x)) return x.length>0; return true; }
 
-  /* ── 顶部统计（纯计数事实） ── */
-  (function(){
+  /* ── 渲染（快照与实时共用同一套） ── */
+  function renderAll(D){
+    /* 顶部统计（纯计数事实） */
     const total = D.runs.length;
     const withPage = D.runs.filter(r=>has(r.reviewPage)).length;
     $("#stats").textContent = "共 " + total + " 单（新单在上）｜回顾页：已生成 " + withPage + " 单／未生成 " + (total-withPage) + " 单";
-  })();
 
-  /* ── 数据抽取备注横幅 ── */
-  (function(){
-    const list = $("#notes-list");
+    /* 数据抽取备注横幅 */
+    const list = $("#notes-list"); list.innerHTML = "";
     if(has(D.extractionNotes)){
       $("#notes-summary").textContent = "数据抽取备注（" + D.extractionNotes.length + " 条：哪些字段缺失、哪些靠推断）";
       D.extractionNotes.forEach(n=>{
@@ -110,11 +316,9 @@ const OVERVIEW_DATA = /*__OVERVIEW_DATA__*/;
       $("#notes-summary").textContent = "数据抽取备注（无：全部字段均取自原文、无推断）";
       list.appendChild(el("li",null,"无。"));
     }
-  })();
 
-  /* ── run 卡片列表（数据已按新单在上排好） ── */
-  (function(){
-    const box = $("#cards");
+    /* run 卡片列表（数据已按新单在上排好） */
+    const box = $("#cards"); box.innerHTML = "";
     D.runs.forEach(r=>{
       // 有回顾页：整卡为相对路径链接；无：普通 div
       const card = el(has(r.reviewPage) ? "a" : "div", "run-card");
@@ -147,6 +351,113 @@ const OVERVIEW_DATA = /*__OVERVIEW_DATA__*/;
 
       box.appendChild(card);
     });
+    setupFade();
+  }
+
+  /* ── 进入视口淡入（一次性；reduced-motion 或不支持 IO 时直接呈现终态） ── */
+  function setupFade(){
+    if(!("IntersectionObserver" in window)) return;
+    if(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const io = new IntersectionObserver(function(es){
+      es.forEach(function(en){ if(en.isIntersecting){ en.target.classList.add("io-in"); io.unobserve(en.target); } });
+    }, {threshold:.08});
+    document.querySelectorAll(".run-card:not(.io-in), #notes-banner:not(.io-in)").forEach(function(e){ e.classList.add("io-pre"); io.observe(e); });
+  }
+
+  /* 首渲：内嵌静态快照 */
+  renderAll(D0);
+
+  /* ── 实时模式（File System Access API；不支持则保持静态快照） ── */
+  (function(){
+    const btn = $("#live-btn"), hint = $("#live-hint"), badge = $("#src-badge"), liveTime = $("#live-time");
+    if(!("showDirectoryPicker" in window) || !("indexedDB" in window)){
+      hint.textContent = "当前浏览器不支持实时直连（需 Chrome/Edge）；显示静态快照，生成时间以文件修改时间为准。";
+      return;
+    }
+
+    /* IndexedDB 句柄存取（零依赖手写） */
+    function idbOpen(){ return new Promise(function(res,rej){
+      const q = indexedDB.open("run-review-live",1);
+      q.onupgradeneeded = function(){ q.result.createObjectStore("kv"); };
+      q.onsuccess = function(){ res(q.result); };
+      q.onerror = function(){ rej(q.error); };
+    }); }
+    async function idbSet(k,v){ const db=await idbOpen(); return new Promise(function(res,rej){
+      const tx = db.transaction("kv","readwrite"); tx.objectStore("kv").put(v,k);
+      tx.oncomplete = function(){ res(); }; tx.onerror = function(){ rej(tx.error); };
+    }); }
+    async function idbGet(k){ const db=await idbOpen(); return new Promise(function(res,rej){
+      const q = db.transaction("kv").objectStore("kv").get(k);
+      q.onsuccess = function(){ res(q.result); }; q.onerror = function(){ rej(q.error); };
+    }); }
+
+    /* FS API → io 适配器 */
+    function fsIO(root){
+      async function fh(runId, rel){
+        let h = await root.getDirectoryHandle(runId);
+        const parts = rel.split("/");
+        for(let i=0;i<parts.length-1;i++) h = await h.getDirectoryHandle(parts[i]);
+        return h.getFileHandle(parts[parts.length-1]);
+      }
+      return {
+        async listRuns(){ const out=[]; for await (const e of root.entries()){ if(e[1].kind==="directory") out.push(e[0]); } return out; },
+        async readText(runId, rel){ try{ const f = await (await fh(runId,rel)).getFile(); return await f.text(); }catch(e){ return null; } },
+        async exists(runId, rel){ try{ await fh(runId,rel); return true; }catch(e){ return false; } }
+      };
+    }
+
+    async function goLive(handle){
+      let root = handle;
+      // 容错：选成包根时自动下钻 runs/
+      try{
+        const names = await fsIO(root).listRuns();
+        if(!names.some(function(n){ return /^\d{4}-\d{2}-\d{2}-/.test(n); })) root = await root.getDirectoryHandle("runs");
+      }catch(e){}
+      const data = await liveExtractAll(fsIO(root));
+      renderAll(data);
+      badge.textContent = "实时 · 直连 " + root.name + "/ 目录";
+      hint.textContent = "run 文件夹即数据库，本页为实时投影；改动 run 文件后刷新即最新。";
+      liveTime.textContent = "数据读取于 " + new Date().toLocaleString() + "（运行时状态，不写入文件）";
+      btn.hidden = true;
+    }
+    function fail(msg){
+      badge.textContent = "静态快照";
+      hint.textContent = "实时连接未完成（" + msg + "），显示静态快照。";
+    }
+
+    (async function(){
+      let handle = null;
+      try{ handle = await idbGet("runsDir"); }catch(e){}
+      if(handle){
+        // 有存根句柄：已授权直接扫，未授权给恢复按钮（需手势）
+        let perm = "prompt";
+        try{ perm = await handle.queryPermission({mode:"read"}); }catch(e){}
+        if(perm === "granted"){
+          try{ await goLive(handle); return; }catch(e){ fail("读取失败"); return; }
+        }
+        btn.textContent = "恢复实时连接（runs/）";
+        btn.hidden = false;
+        hint.textContent = "检测到此前的 runs/ 目录连接；点击按钮恢复实时数据。";
+        btn.onclick = async function(){
+          try{
+            const p = await handle.requestPermission({mode:"read"});
+            if(p === "granted"){ await goLive(handle); } else { fail("未授权"); }
+          }catch(e){ fail("授权被拒或句柄失效"); }
+        };
+      }else{
+        btn.textContent = "连接 runs/ 目录";
+        btn.hidden = false;
+        btn.onclick = async function(){
+          try{
+            const h = await window.showDirectoryPicker({id:"runs-dashboard", mode:"read"});
+            await idbSet("runsDir", h);
+            await goLive(h);
+          }catch(e){
+            if(e && e.name === "AbortError"){ fail("已取消选择"); } else { fail("目录不可用"); }
+          }
+        };
+      }
+    })();
   })();
 })();
 </script>
