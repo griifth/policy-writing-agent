@@ -44,13 +44,13 @@ python3 engine/run_entity.py \
 
 ## 三、密钥配置说明（密钥零泄漏纪律）
 
-- **本目录不存放任何密钥。** 密钥仍从旧引擎既有 `.env` 位置读取：默认为 **direction_workflow/ 上一级目录**下的 `.env`（按相对位置定位，与目录名无关）。
+- **本目录不存放任何密钥。** 密钥仍从旧引擎既有 `.env` 位置读取：首选**包根 `direction_workflow/.env`**（把随包的 `.env.example` 复制为 `.env` 填写即可；已被包级 .gitignore 排除、不会误提交）；找不到时兼容旧位置——包上一级目录的 `.env`。
 - 所需变量：`DEEPSEEK_API_KEY`（必填）、`DEEPSEEK_BASE_URL`、
   `DEEPSEEK_MODEL`、`DEEPSEEK_TIMEOUT_SECONDS`、`DEEPSEEK_MAX_TOKENS`、
   `DEEPSEEK_REASONING_EFFORT`、`DEEPSEEK_THINKING_ENABLED`。
 - 覆盖方式：进程环境变量最优先；或 `--env` / `DEEPSEEK_ENV_PATH` 指定其他 `.env`
   （路径须在包上一级目录范围内，越界即报错）。
-- 新机移植：整包拎走后在包的上一级目录自备 `.env`（变量清单见 依赖说明.md），
+- 新机移植：复制包根 `.env.example` 为 `.env` 填写（变量清单见 依赖说明.md），
   用 `--env` 指向即可；**严禁把密钥写进 engine/ 或任何将提交的文件、严禁打印**。
 
 ## 四、血换的降级重试（务必保留，勿"简化"）
@@ -64,6 +64,6 @@ python3 engine/run_entity.py \
 3. 第 3 级：`reasoning_effort=low` ＋ 关闭 thinking（`thinking.type=disabled`）；
 4. 三级仍空 → 报错中止，**绝不把空产物落盘**。每级重试间隔 5s×级数，全程 stdout 留痕。
 
-客户端层（`engine/deepseek_client.py`，移植自 `example1/workflow/deepseek_client.py`）的
+客户端层（`engine/deepseek_client.py`，移植自 `<内部仓库>/workflow/deepseek_client.py`）的
 空响应防护同样原样保留：content 为空即抛 `DeepSeekEmptyResponseError`，并刻意不保存、
 不拼接、不外露 `reasoning_content`。

@@ -11,8 +11,8 @@
 # 1. 安装 Python 依赖（排版工序需要）
 pip install -r requirements.txt
 
-# 2.（可选，生产单才需要）在本包的上一级目录放 .env，写入 DEEPSEEK_API_KEY
-#    试跑单可由 agent 直写，无需密钥。详见 依赖说明.md
+# 2.（可选，生产单才需要）复制包根 .env.example 为 .env，填入 DEEPSEEK_API_KEY
+#    （.gitignore 已排除 .env，不会误提交）。试跑单 agent 直写无需密钥。详见 依赖说明.md
 
 # 3. 在装有本包 skills 的 Claude Code / agent 会话中，对装配工说：
 #    「派单：<你的主题>」——派单员（order-dispatch）会问清决策模式等五个变量，
