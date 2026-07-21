@@ -1,4 +1,4 @@
-> 〔快照 2026-07-13〕真源：example1/strategic_response_workflow/shared_schema/register_blacklist.md。修改设计请改真源并重新快照，勿只改此副本。
+> 〔快照 2026-07-13〕真源：<内部仓库>/strategic_response_workflow/shared_schema/register_blacklist.md。修改设计请改真源并重新快照，勿只改此副本。
 
 # 军事化/对攻定性词黑名单（register_blacklist · 唯一真源）
 

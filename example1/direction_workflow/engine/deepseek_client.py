@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """DeepSeek 外部调用客户端（direction_workflow · 执行引擎）。
 
-移植来源：example1/workflow/deepseek_client.py（旧引擎真源只读，此为独立副本）。
+移植来源：<内部仓库>/workflow/deepseek_client.py（旧引擎真源只读，此为独立副本）。
 原样保留的血换逻辑：
   - 空响应防护：content 为空即抛 DeepSeekEmptyResponseError，绝不把空结果当产物落盘
     （根因：finish_reason=length，推理 thinking 烧穿 max_tokens）；
@@ -28,11 +28,13 @@ except ImportError:  # pragma: no cover - 运行时给出更清晰的依赖错�
     OpenAI = None  # type: ignore[assignment]
 
 
-# engine/ 位于 direction_workflow/engine/，parents[2] = 包的上一级目录
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-# 旧引擎既有 .env 位置（example1/.env）；strategic_response_workflow/.env 亦可经
-# 环境变量 DEEPSEEK_ENV_PATH 或 run_entity.py --env 指定。
-DEFAULT_ENV_PATH = PROJECT_ROOT / ".env"
+# engine/ 位于 direction_workflow/engine/：parents[1]=包根，parents[2]=包上一级。
+PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]  # 路径边界仍取包上一级，两处 .env 均在界内
+# .env 默认位置：首选包根 direction_workflow/.env（随包 .env.example 复制填写），
+# 兼容旧位置包上一级 .env；亦可经 DEEPSEEK_ENV_PATH 或 run_entity.py --env 指定。
+DEFAULT_ENV_PATH = PACKAGE_ROOT / ".env"
+LEGACY_ENV_PATH = PROJECT_ROOT / ".env"
 
 
 class DeepSeekConfigError(RuntimeError):
@@ -131,6 +133,8 @@ def load_deepseek_config(env_path: str | Path = DEFAULT_ENV_PATH) -> DeepSeekCon
     override = os.environ.get("DEEPSEEK_ENV_PATH")
     if override and Path(env_path) == DEFAULT_ENV_PATH:
         env_path = Path(override)
+    elif Path(env_path) == DEFAULT_ENV_PATH and not DEFAULT_ENV_PATH.exists() and LEGACY_ENV_PATH.exists():
+        env_path = LEGACY_ENV_PATH  # 兼容旧位置（包上一级）
     env_values = _parse_env_file(Path(env_path))
 
     api_key = _get_env_value("DEEPSEEK_API_KEY", env_values)

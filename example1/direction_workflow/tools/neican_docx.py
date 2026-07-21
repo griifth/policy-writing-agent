@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# 〔快照 2026-07-13〕真源：example1/scripts/neican_docx.py（只读移植入 direction_workflow/tools/，除本头注外未改动一字）。
+# 〔快照 2026-07-13〕真源：<内部仓库>/scripts/neican_docx.py（只读移植入 direction_workflow/tools/，除本头注外未改动一字）。
 # 依赖：python3 ＋ python-docx（pip install python-docx）。真源改动后须重新快照，勿只改此副本。
 """内参版式 docx 导出器（默认格式：课题组研究报告体·像素级内参版式）。
 

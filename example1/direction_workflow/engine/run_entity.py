@@ -10,7 +10,7 @@ stdout 打印 token 用量与降级留痕；不打分、不改产物、不打印
 
     --attach  可多次：把实体提示词第 3 节【本篇材料】所引路径的文件内容内联进提示词
               （DeepSeek 不能读盘，自包含化靠内联；内联即留痕，见 stdout 与提示词尾节）。
-    --env     指定 .env 位置（默认包上一级目录下的 .env；只读路径，密钥不进本目录）。
+    --env     指定 .env 位置（默认包根 direction_workflow/.env（兼容包上一级旧位置）；只读路径）。
     --effort  首次尝试的 reasoning_effort（默认取 .env / DEEPSEEK_REASONING_EFFORT）。
 
 降级重试（移植自旧引擎 workflow/report_pipeline._ask_deepseek，血换逻辑原样保留）：
@@ -75,7 +75,7 @@ def main() -> None:
         "--attach", action="append", default=[], metavar="FILE",
         help="内联进提示词的材料文件（可多次；对应实体提示词第 3 节所引路径）",
     )
-    parser.add_argument("--env", default=None, help=".env 路径（默认包上一级目录下的 .env）")
+    parser.add_argument("--env", default=None, help=".env 路径（默认包根 .env，兼容包上一级）")
     parser.add_argument("--effort", default=None, help="首次尝试的 reasoning_effort（默认取配置）")
     args = parser.parse_args()
 

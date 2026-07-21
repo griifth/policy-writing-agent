@@ -1,0 +1,6 @@
+# 密钥不入库（.env.example 是样例，随包）
+.env
+# 系统与缓存
+.DS_Store
+__pycache__/
+*.pyc
